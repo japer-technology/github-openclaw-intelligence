@@ -6,10 +6,7 @@ If you discover a security vulnerability, **do not open a public issue.** Contac
 
 ## Security Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Security Assessment](.github-minimum-intelligence/docs/security-assessment.md) | Comprehensive security review covering threat model, vulnerability assessment, access control, supply chain, and compliance. |
-| [Capabilities Analysis](.github-minimum-intelligence/docs/warning-blast-radius.md) | Evidence-based audit of agent capabilities and access scope. |
+Security documentation is maintained in the `.github-openclaw-intelligence/docs/` directory.
 
 ## Supported Versions
 

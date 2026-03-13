@@ -24,13 +24,13 @@ This Code of Conduct applies to all project spaces: issues, pull requests, discu
 - Trolling, insulting or derogatory comments, and personal or political attacks.
 - Publishing others' private information without explicit permission.
 - Using the project's AI capabilities to cause harm to individuals, communities, or the public interest.
-- Any conduct that would violate the [Four Laws of AI](.github-minimum-intelligence/docs/the-four-laws-of-ai.md).
+- Any conduct that would violate the Four Laws of AI.
 
 ---
 
 ## Alignment with the Four Laws
 
-This project defines [Four Laws of AI](.github-minimum-intelligence/docs/the-four-laws-of-ai.md) that govern the system's behavior. Contributors — human and automated alike — are expected to uphold these principles:
+This project defines Four Laws of AI that govern the system's behavior. Contributors — human and automated alike — are expected to uphold these principles:
 
 | Law | Principle | What it means for contributors |
 |-----|-----------|-------------------------------|
@@ -51,4 +51,4 @@ Maintainers have the right and responsibility to remove, edit, or reject comment
 
 ## Attribution
 
-This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1, with additions specific to this project's [Four Laws of AI](.github-minimum-intelligence/docs/the-four-laws-of-ai.md).
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org/), version 2.1, with additions specific to this project's Four Laws of AI.
