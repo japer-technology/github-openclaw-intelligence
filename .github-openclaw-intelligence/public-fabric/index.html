@@ -1,58 +1,362 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OpenClaw Intelligence</title>
-  <style>
-    :root {
-      --bg: #0d1117;
-      --fg: #c9d1d9;
-      --accent: #58a6ff;
-      --card-bg: #161b22;
-      --border: #30363d;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      line-height: 1.6;
-      padding: 2rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    h1 { color: var(--accent); margin-bottom: 0.5rem; }
-    h2 { color: var(--accent); margin: 1.5rem 0 0.5rem; font-size: 1.2rem; }
-    p { margin-bottom: 1rem; }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-    .subtitle { color: #8b949e; font-size: 0.9rem; }
-    code {
-      background: var(--card-bg);
-      padding: 0.2em 0.4em;
-      border-radius: 3px;
-      font-size: 0.9em;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub OpenClaw Intelligence</title>
+<meta name="description" content="A repository-local AI framework that uses GitHub Issues for conversation, Git for persistent versioned memory, and GitHub Actions for execution.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔱</text></svg>">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="GitHub OpenClaw Intelligence">
+<meta property="og:description" content="A repository-local AI framework: GitHub Issues for conversation, Git for memory, Actions for execution.">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="GitHub OpenClaw Intelligence">
+<meta name="twitter:description" content="A repository-local AI framework: GitHub Issues for conversation, Git for memory, Actions for execution.">
+
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d1117;--surface:#161b22;--border:#30363d;
+    --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;
+    --accent2:#bc8cff;--accent3:#3fb950;--glow:rgba(88,166,255,.15);
+    --radius:12px;
+  }
+  html{scroll-behavior:smooth}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.6;
+    overflow-x:hidden;
+  }
+
+  /* ── Animated background mesh ── */
+  .bg-mesh{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%,rgba(88,166,255,.08),transparent),
+      radial-gradient(ellipse 60% 50% at 80% 80%,rgba(188,140,255,.06),transparent),
+      radial-gradient(ellipse 50% 40% at 50% 50%,rgba(63,185,80,.04),transparent);
+    animation:meshDrift 20s ease-in-out infinite alternate;
+  }
+  @keyframes meshDrift{
+    0%{filter:hue-rotate(0deg)}
+    100%{filter:hue-rotate(30deg)}
+  }
+
+  /* ── Layout ── */
+  .page{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:2rem 1.5rem 4rem}
+
+  /* ── Hero ── */
+  .hero{text-align:center;padding:3rem 0 2rem}
+  .hero h1{
+    font-size:clamp(2rem,5vw,3.2rem);font-weight:800;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    background-clip:text;
+    margin:.8rem 0 .4rem;
+    animation:fadeUp .8s .15s ease-out both;
+  }
+  .hero .slug{
+    font-family:"SFMono-Regular",Consolas,monospace;
+    color:var(--muted);font-size:.95rem;
+    animation:fadeUp .8s .25s ease-out both;
+  }
+  .hero .tagline{
+    max-width:640px;margin:1.2rem auto 0;color:var(--muted);
+    font-size:1.05rem;
+    animation:fadeUp .8s .35s ease-out both;
+  }
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(24px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  /* ── Badges ── */
+  .badges{display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;animation:fadeUp .8s .4s ease-out both}
+  .badge{
+    display:inline-flex;align-items:center;gap:.35rem;
+    padding:.3rem .7rem;border-radius:999px;font-size:.78rem;font-weight:600;
+    border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    transition:border-color .2s,color .2s;
+  }
+  .badge:hover{border-color:var(--accent);color:var(--accent)}
+  .badge .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .dot--blue{background:var(--accent)}.dot--green{background:var(--accent3)}.dot--purple{background:var(--accent2)}
+
+  /* ── Sections ── */
+  section{margin-top:2.5rem}
+  .section-title{
+    font-size:1.15rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--accent);margin-bottom:1rem;
+    display:flex;align-items:center;gap:.5rem;
+  }
+  .section-title::before{content:"";width:4px;height:1.1em;border-radius:2px;background:var(--accent)}
+
+  /* ── Cards ── */
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:1.4rem 1.6rem;margin-bottom:1rem;
+    transition:border-color .25s,box-shadow .25s;
+  }
+  .card:hover{border-color:var(--accent);box-shadow:0 0 20px var(--glow)}
+  .card h3{font-size:1.05rem;margin-bottom:.5rem;color:var(--text)}
+  .card p,.card li{color:var(--muted);font-size:.92rem}
+  .card ul{list-style:none;padding:0}
+  .card li{padding:.25rem 0;padding-left:1.2rem;position:relative}
+  .card li::before{content:"›";position:absolute;left:0;color:var(--accent);font-weight:700}
+
+  /* ── Grid ── */
+  .grid{display:grid;gap:1rem}
+  .grid-2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .grid-3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+
+  /* ── Table ── */
+  .dep-table{width:100%;border-collapse:collapse;font-size:.88rem}
+  .dep-table th{text-align:left;color:var(--accent);padding:.5rem .6rem;border-bottom:1px solid var(--border);font-weight:600}
+  .dep-table td{padding:.5rem .6rem;color:var(--muted);border-bottom:1px solid var(--border)}
+  .dep-table a{color:var(--accent);text-decoration:none}
+  .dep-table a:hover{text-decoration:underline}
+
+  /* ── Lifecycle ── */
+  .lifecycle{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.6rem}
+  .lifecycle span{
+    background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+    padding:.4rem .85rem;font-size:.82rem;font-weight:600;color:var(--text);
+    position:relative;
+  }
+  .lifecycle span::after{
+    content:"→";color:var(--accent);margin-left:.6rem;font-weight:400;
+  }
+  .lifecycle span:last-child::after{content:"✓";color:var(--accent3)}
+
+  /* ── Links ── */
+  a.link{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent);transition:color .2s}
+  a.link:hover{color:var(--accent2);border-color:var(--accent2)}
+
+  /* ── Footer ── */
+  footer{
+    text-align:center;margin-top:3rem;padding-top:2rem;
+    border-top:1px solid var(--border);color:var(--muted);font-size:.82rem;
+  }
+  footer a{color:var(--accent);text-decoration:none}
+  footer a:hover{text-decoration:underline}
+
+  /* ── Skip-to-content (a11y) ── */
+  .skip-link{
+    position:absolute;top:-100%;left:50%;transform:translateX(-50%);
+    background:var(--accent);color:var(--bg);padding:.5rem 1.2rem;border-radius:var(--radius);
+    font-weight:700;font-size:.85rem;z-index:100;text-decoration:none;
+    transition:top .2s;
+  }
+  .skip-link:focus{top:1rem}
+
+  /* ── Focus-visible (a11y) ── */
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  a:focus-visible{border-radius:4px}
+
+  /* ── Selection ── */
+  ::selection{background:rgba(88,166,255,.3);color:var(--text)}
+
+  /* ── Scroll-reveal ── */
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .5s ease,transform .5s ease}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+
+  /* ── Reduced motion (a11y) ── */
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+    .reveal{opacity:1;transform:none}
+    .bg-mesh{animation:none}
+  }
+
+  /* ── Print ── */
+  @media print{
+    .bg-mesh{display:none}
+    body{background:#fff;color:#111}
+    .card{border:1px solid #ccc;box-shadow:none}
+    a{color:#111;text-decoration:underline}
+  }
+</style>
 </head>
 <body>
-  <h1>🔱 OpenClaw Intelligence</h1>
-  <p class="subtitle">A standalone tool-rich AI agent that lives inside your GitHub repository.</p>
+<a class="skip-link" href="#app">Skip to content</a>
+<div class="bg-mesh"></div>
+<div class="page" id="app" role="main">
+  <noscript>
+    <header class="hero" style="opacity:1;transform:none">
+      <h1 style="color:var(--accent)">GitHub OpenClaw Intelligence</h1>
+      <p class="slug">japer-technology / github-openclaw-intelligence</p>
+      <p class="tagline" style="opacity:1;transform:none">A repository-local AI framework that uses GitHub&nbsp;Issues for conversation, Git for persistent versioned memory, and GitHub&nbsp;Actions for execution. Please enable JavaScript to view the full interactive page.</p>
+    </header>
+  </noscript>
+</div>
 
-  <div class="card">
-    <h2>Activation</h2>
-    <p>Comment with <code>@</code> prefix to activate OpenClaw.</p>
-  </div>
+<script>
+  (function () {
+    "use strict";
 
-  <div class="card">
-    <h2>Capabilities</h2>
-    <p>30+ tools including sub-agent orchestration, semantic memory search, media understanding, browser automation with CDP, multi-search backends, diff analysis, and multi-model failover.</p>
-  </div>
+    /* ── Helpers ── */
+    function esc(str) {
+      var d = document.createElement("div");
+      d.appendChild(document.createTextNode(str));
+      return d.innerHTML;
+    }
+
+    function applyTheme(theme) {
+      var root = document.documentElement.style;
+      var map = {
+        bg: "--bg", surface: "--surface", border: "--border",
+        text: "--text", muted: "--muted", accent: "--accent",
+        accent2: "--accent2", accent3: "--accent3", glow: "--glow",
+        radius: "--radius"
+      };
+      for (var key in map) {
+        if (theme[key] != null) root.setProperty(map[key], theme[key]);
+      }
+    }
+
+    /* ── Content renderers ── */
+    function renderBadges(badges) {
+      return '<div class="badges">' +
+        badges.map(function (b) {
+          return '<span class="badge"><span class="dot dot--' + esc(b.color) + '"></span>' + esc(b.label) + '</span>';
+        }).join("") +
+        '</div>';
+    }
+
+    function renderContentBlock(block) {
+      switch (block.type) {
+        case "paragraph":
+          var style = block.style ? ' style="' + esc(block.style) + '"' : "";
+          return "<p" + style + ">" + block.html + "</p>";
+
+        case "list":
+          return "<ul>" +
+            block.items.map(function (item) { return "<li>" + item + "</li>"; }).join("") +
+            "</ul>";
+
+        case "table":
+          var h = "<thead><tr>" +
+            block.headers.map(function (th) { return "<th>" + esc(th) + "</th>"; }).join("") +
+            "</tr></thead>";
+          var b = "<tbody>" +
+            block.rows.map(function (row) {
+              return "<tr>" + row.map(function (cell) { return "<td>" + cell + "</td>"; }).join("") + "</tr>";
+            }).join("") +
+            "</tbody>";
+          return '<table class="dep-table">' + h + b + "</table>";
+
+        case "lifecycle":
+          return '<div class="lifecycle">' +
+            block.steps.map(function (s) { return "<span>" + esc(s) + "</span>"; }).join("") +
+            "</div>";
+
+        case "codeblock":
+          var lines = block.lines.map(function (l) {
+            if (!l.path && !l.comment) return "";
+            var pad = l.path.length;
+            var spacer = " ".repeat(Math.max(0, 26 - pad));
+            return l.path + spacer + '<span style="color:var(--accent)">' + l.comment + "</span>";
+          }).join("\n");
+          return '<pre style="color:var(--muted);font-size:.85rem;overflow-x:auto;line-height:1.8"><code>' + lines + "</code></pre>";
+
+        default:
+          return "";
+      }
+    }
+
+    function renderCard(card) {
+      var html = '<div class="card">';
+      if (card.heading) {
+        html += "<h3>" + card.heading;
+        if (card.headingSuffix) {
+          html += ' <span style="color:var(--muted);font-weight:400;font-size:.85rem">' + esc(card.headingSuffix) + "</span>";
+        }
+        html += "</h3>";
+      }
+      if (card.content) {
+        card.content.forEach(function (block) { html += renderContentBlock(block); });
+      }
+      return html + "</div>";
+    }
+
+    function renderSection(section) {
+      var idAttr = section.id ? ' id="' + esc(section.id) + '"' : "";
+      var html = '<section class="reveal"' + idAttr + ' aria-label="' + esc(section.title) + '"><div class="section-title">' + section.title + "</div>";
+      if (section.grid) {
+        html += '<div class="grid ' + esc(section.grid) + '">';
+        section.cards.forEach(function (c) { html += renderCard(c); });
+        html += "</div>";
+      } else {
+        section.cards.forEach(function (c) { html += renderCard(c); });
+      }
+      return html + "</section>";
+    }
+
+    /* ── Main render ── */
+    function render(data) {
+      if (data.meta && data.meta.title) document.title = data.meta.title;
+      if (data.theme) applyTheme(data.theme);
+
+      var hero = data.hero;
+      var html = '<header class="hero">';
+      if (hero.logoUrl) {
+        html += '<img class="hero-logo" src="' + esc(hero.logoUrl) + '" alt="' + esc(hero.logoAlt) + '" width="360" height="360">';
+      }
+      html += "<h1>" + esc(hero.title) + "</h1>";
+      html += '<p class="slug">' + esc(hero.slug) + "</p>";
+      html += '<p class="tagline">' + hero.tagline + "</p>";
+      if (hero.badges) html += renderBadges(hero.badges);
+      html += "</header>";
+
+      data.sections.forEach(function (s) { html += renderSection(s); });
+
+      var f = data.footer;
+      html += "<footer><p>";
+      html += '<a href="' + esc(f.repoUrl) + '" target="_blank" rel="noopener">' + esc(f.repoName) + "</a>";
+      html += "&nbsp;\u00b7&nbsp; " + esc(f.tagline);
+      html += '</p><p style="margin-top:.3rem" id="gen-time"></p></footer>';
+
+      document.getElementById("app").innerHTML = html;
+
+      initReveal();
+      var gt = document.getElementById("gen-time");
+      if (gt) gt.textContent = "Page loaded " + new Date().toLocaleString();
+    }
+
+    /* ── Scroll-reveal observer ── */
+    function initReveal() {
+      var reveals = document.querySelectorAll(".reveal");
+      if ("IntersectionObserver" in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.12 });
+        reveals.forEach(function (el) { observer.observe(el); });
+      } else {
+        reveals.forEach(function (el) { el.classList.add("visible"); });
+      }
+    }
+
+    /* ── Fetch status.json and render ── */
+    fetch("status.json")
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(render)
+      .catch(function (err) {
+        document.getElementById("app").innerHTML =
+          '<p style="text-align:center;padding:4rem 1rem;color:var(--muted)">Unable to load status data. ' + esc(err.message || String(err)) + "</p>";
+      });
+  })();
+</script>
 </body>
 </html>

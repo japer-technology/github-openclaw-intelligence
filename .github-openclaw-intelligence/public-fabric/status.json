@@ -1,0 +1,499 @@
+{
+  "meta": {
+    "title": "GitHub OpenClaw Intelligence — japer-technology/github-openclaw-intelligence"
+  },
+  "theme": {
+    "bg": "#0d1117",
+    "surface": "#161b22",
+    "border": "#30363d",
+    "text": "#e6edf3",
+    "muted": "#8b949e",
+    "accent": "#58a6ff",
+    "accent2": "#bc8cff",
+    "accent3": "#3fb950",
+    "glow": "rgba(88,166,255,.15)",
+    "radius": "12px"
+  },
+  "hero": {
+    "logoAlt": "OpenClaw Intelligence logo",
+    "title": "GitHub OpenClaw Intelligence",
+    "slug": "japer-technology / github-openclaw-intelligence",
+    "tagline": "A repository-local AI framework that uses GitHub\u00a0Issues for conversation, Git for persistent versioned memory, and GitHub\u00a0Actions for execution \u2014 delivering low-infrastructure, auditable, user-owned automation by committing every prompt and response to the codebase.",
+    "badges": [
+      { "label": "v1.0.0", "color": "blue" },
+      { "label": "MIT License", "color": "green" },
+      { "label": "TypeScript / Bun", "color": "blue" },
+      { "label": "AI-Assisted Development", "color": "purple" },
+      { "label": "GitHub Actions Runtime", "color": "blue" }
+    ]
+  },
+  "sections": [
+    {
+      "id": "about",
+      "title": "About",
+      "cards": [
+        {
+          "heading": "What Is GitHub OpenClaw Intelligence?",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "OpenClaw Intelligence proves that a folder, a workflow, and an LLM API key can create an interactive AI collaborator as natural as talking to a teammate. Drop a single <code>.github-openclaw-intelligence</code> folder into any repo and you have a fully functional AI agent with 30+ tools."
+            },
+            {
+              "type": "paragraph",
+              "html": "Every GitHub issue becomes a conversation thread. The agent reads your message, thinks, responds, and commits its work \u2014 all inside your repository. <strong>Your data, your environment, your control.</strong>"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "installation",
+      "title": "Installation",
+      "cards": [
+        {
+          "heading": "Quick Start — 4 Steps",
+          "content": [
+            {
+              "type": "list",
+              "items": [
+                "<strong>1.</strong> Copy <code>.github/workflows/github-openclaw-intelligence-agent.yml</code> into your repo's <code>.github/workflows/</code> directory.",
+                "<strong>2.</strong> Add an LLM API key (e.g. <code>OPENAI_API_KEY</code>) as a <strong>repository secret</strong> under <strong>Settings → Secrets and variables → Actions</strong>.",
+                "<strong>3.</strong> Go to <strong>Actions → github-openclaw-intelligence-agent → Run workflow</strong> to install the agent files automatically.",
+                "<strong>4.</strong> Open an issue — the agent will reply."
+              ]
+            },
+            {
+              "type": "paragraph",
+              "html": "Subsequent manual workflow runs perform upgrades. OpenAI GPT 5.4 is pre-configured — any <a class=\"link\" href=\"#providers\">supported provider</a> works.",
+              "style": "margin-top:.6rem;font-size:.85rem"
+            }
+          ]
+        },
+        {
+          "heading": "Prerequisites",
+          "content": [
+            {
+              "type": "list",
+              "items": [
+                "A GitHub repository (new or existing)",
+                "An API key from your chosen LLM provider (see <a class=\"link\" href=\"#providers\">Supported Providers</a> below)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "concepts",
+      "title": "Key Concepts",
+      "grid": "grid-2",
+      "cards": [
+        {
+          "heading": "Issue = Conversation",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Each GitHub issue maps to a persistent AI conversation. Comment again to continue where you left off."
+            }
+          ]
+        },
+        {
+          "heading": "Git = Memory",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Session transcripts are committed to the repo. The agent has full recall of every prior exchange."
+            }
+          ]
+        },
+        {
+          "heading": "Actions = Runtime",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "GitHub Actions is the only compute layer. No servers, no containers, no external services."
+            }
+          ]
+        },
+        {
+          "heading": "Repo = Storage",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "All state \u2014 sessions, mappings, and agent edits \u2014 lives in the repository itself."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "why",
+      "title": "Why It Matters",
+      "grid": "grid-2",
+      "cards": [
+        {
+          "heading": "Single Folder, Any Repo",
+          "content": [
+            { "type": "paragraph", "html": "Copy <code>.github-openclaw-intelligence/</code> in and run the install script. Nothing to host or maintain." }
+          ]
+        },
+        {
+          "heading": "Zero Infrastructure",
+          "content": [
+            { "type": "paragraph", "html": "Runs on GitHub Actions with your repo as the only backend. No servers, no containers." }
+          ]
+        },
+        {
+          "heading": "Full Auditability",
+          "content": [
+            { "type": "paragraph", "html": "Every interaction is versioned; review or roll back any change the agent made." }
+          ]
+        },
+        {
+          "heading": "Persistent Memory",
+          "content": [
+            { "type": "paragraph", "html": "Conversations are committed to git \u2014 the agent remembers everything across sessions." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "data-sovereignty",
+      "title": "Your Data, Your Environment",
+      "cards": [
+        {
+          "heading": "Everything Lives in Your Repo",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "With a typical LLM, every question you ask and every answer you receive lives on <em>someone else\u2019s</em> platform. OpenClaw Intelligence flips that model."
+            },
+            {
+              "type": "list",
+              "items": [
+                "<strong>Ask a question</strong> \u2192 the answer is already in your repo",
+                "<strong>Request a file change</strong> \u2192 the agent commits the edit for you",
+                "<strong>Continue a conversation weeks later</strong> \u2192 the full history is right there in git"
+              ]
+            },
+            {
+              "type": "paragraph",
+              "html": "Your repository <em>is</em> the AI workspace. The questions, the results, the code, the context \u2014 it all lives where your work already lives, versioned and searchable, owned entirely by you."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "title": "Workflow Lifecycle",
+      "cards": [
+        {
+          "heading": "Issue → Workflow → Agent → Commit → Reply",
+          "content": [
+            {
+              "type": "lifecycle",
+              "steps": ["Issue Event", "Start Workflow", "Load Session", "Agent Process", "Save State", "Post Reply"]
+            },
+            {
+              "type": "paragraph",
+              "html": "When you open an issue or comment on one, a GitHub Actions workflow launches the AI agent, which reads your message, thinks, responds, and commits its work \u2014 all without leaving GitHub."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "what-happens",
+      "title": "What Happens When You Open an Issue",
+      "cards": [
+        {
+          "content": [
+            {
+              "type": "list",
+              "items": [
+                "You open an issue",
+                "→ GitHub Actions triggers the agent workflow",
+                "→ The agent reads your issue, thinks, and responds",
+                "→ Its reply appears as a comment (🚀 shows while it's working, 👍 on success)",
+                "→ The conversation is saved to git for future context"
+              ]
+            },
+            {
+              "type": "paragraph",
+              "html": "Comment on the same issue to continue the conversation. The agent picks up where it left off."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "capabilities",
+      "title": "Capabilities",
+      "grid": "grid-3",
+      "cards": [
+        {
+          "heading": "Multi-Provider LLM",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Works with Anthropic, OpenAI, Google Gemini, xAI, DeepSeek, Mistral, Groq, and any OpenRouter model."
+            }
+          ]
+        },
+        {
+          "heading": "30+ Tools",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "File I/O, code search, bash execution, browser automation (CDP), web search, sub-agent orchestration, semantic memory, media understanding, diff analysis, and multi-model failover."
+            }
+          ]
+        },
+        {
+          "heading": "Personality Hatching",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Give the agent a name, personality, and vibe through a guided conversation."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hatching",
+      "title": "Hatching — Give the Agent a Personality",
+      "cards": [
+        {
+          "heading": "🥚 Hatch",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Use the <strong>🥚 Hatch</strong> issue template (or create an issue with the <code>hatch</code> label) to go through a guided conversation where you and the agent figure out its name, personality, and vibe together."
+            },
+            {
+              "type": "paragraph",
+              "html": "This is optional. The agent works without hatching, but it's more fun with a personality."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dependencies",
+      "title": "Dependencies",
+      "cards": [
+        {
+          "heading": "Runtime",
+          "content": [
+            {
+              "type": "table",
+              "headers": ["Package", "Version", "Role"],
+              "rows": [
+                [
+                  "<a href=\"https://github.com/badlogic/pi-mono\" target=\"_blank\" rel=\"noopener\">@mariozechner/pi-coding-agent</a>",
+                  "0.57.1",
+                  "Core AI agent \u2014 processes prompts, manages sessions"
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Infrastructure",
+          "content": [
+            {
+              "type": "table",
+              "headers": ["Dependency", "Role"],
+              "rows": [
+                ["GitHub Actions", "Sole compute runtime \u2014 every issue event triggers a workflow"],
+                ["GitHub Issues", "Conversation interface \u2014 each issue maps to a persistent AI thread"],
+                ["Git", "Memory &amp; storage layer \u2014 sessions, history, and edits committed"],
+                ["<a href=\"https://bun.sh\" target=\"_blank\" rel=\"noopener\">Bun</a>", "JS/TS runtime for the agent orchestrator"],
+                ["<a href=\"https://cli.github.com\" target=\"_blank\" rel=\"noopener\">gh CLI</a>", "GitHub API interaction \u2014 issues, comments, reactions"]
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "LLM Providers",
+          "headingSuffix": "(one required)",
+          "content": [
+            {
+              "type": "table",
+              "headers": ["Provider", "Config value", "Example model", "API key secret"],
+              "rows": [
+                ["<a href=\"https://platform.openai.com/\" target=\"_blank\" rel=\"noopener\">OpenAI</a>", "<code>openai</code>", "<code>gpt-5.4</code> (default)", "<code>OPENAI_API_KEY</code>"],
+                ["<a href=\"https://console.anthropic.com/\" target=\"_blank\" rel=\"noopener\">Anthropic</a>", "<code>anthropic</code>", "<code>claude-sonnet-4-20250514</code>", "<code>ANTHROPIC_API_KEY</code>"],
+                ["<a href=\"https://aistudio.google.com/\" target=\"_blank\" rel=\"noopener\">Google Gemini</a>", "<code>google</code>", "<code>gemini-2.5-pro</code>, <code>gemini-2.5-flash</code>", "<code>GEMINI_API_KEY</code>"],
+                ["<a href=\"https://console.x.ai/\" target=\"_blank\" rel=\"noopener\">xAI</a>", "<code>xai</code>", "<code>grok-3</code>, <code>grok-3-mini</code>", "<code>XAI_API_KEY</code>"],
+                ["<a href=\"https://openrouter.ai/\" target=\"_blank\" rel=\"noopener\">DeepSeek (via OpenRouter)</a>", "<code>openrouter</code>", "<code>deepseek/deepseek-r1</code>", "<code>OPENROUTER_API_KEY</code>"],
+                ["<a href=\"https://console.mistral.ai/\" target=\"_blank\" rel=\"noopener\">Mistral</a>", "<code>mistral</code>", "<code>mistral-large-latest</code>", "<code>MISTRAL_API_KEY</code>"],
+                ["<a href=\"https://console.groq.com/\" target=\"_blank\" rel=\"noopener\">Groq</a>", "<code>groq</code>", "<code>deepseek-r1-distill-llama-70b</code>", "<code>GROQ_API_KEY</code>"],
+                ["<a href=\"https://openrouter.ai/\" target=\"_blank\" rel=\"noopener\">OpenRouter</a>", "<code>openrouter</code>", "any model on openrouter.ai", "<code>OPENROUTER_API_KEY</code>"]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "structure",
+      "title": "Project Structure",
+      "cards": [
+        {
+          "content": [
+            {
+              "type": "codeblock",
+              "lines": [
+                { "path": ".github-openclaw-intelligence/", "comment": "Core agent framework" },
+                { "path": "  .pi/", "comment": "Agent personality, skills &amp; LLM config" },
+                { "path": "  config/", "comment": "Extension and skill activation" },
+                { "path": "  docs/", "comment": "Analysis, guides &amp; design documentation" },
+                { "path": "  install/", "comment": "Setup scripts &amp; workflow templates" },
+                { "path": "  lifecycle/", "comment": "Agent orchestrator &amp; runtime hooks" },
+                { "path": "  state/", "comment": "Git-tracked session history &amp; issue mappings" },
+                { "path": "  public-fabric/", "comment": "This page \u2014 public repo showcase" },
+                { "path": "", "comment": "" },
+                { "path": ".github/", "comment": "GitHub Actions workflows &amp; issue templates" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "providers",
+      "title": "Configuration",
+      "cards": [
+        {
+          "heading": "Change the Model",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Edit <code>.github-openclaw-intelligence/.pi/settings.json</code> and set <code>defaultProvider</code> and <code>defaultModel</code> to your chosen LLM. Add the matching API key as a repository secret."
+            },
+            {
+              "type": "codeblock",
+              "lines": [
+                { "path": "{", "comment": "" },
+                { "path": "  \"defaultProvider\": \"openai\",", "comment": "← provider id" },
+                { "path": "  \"defaultModel\": \"gpt-5.4\",", "comment": "← model name" },
+                { "path": "  \"defaultThinkingLevel\": \"high\"", "comment": "← low / medium / high" },
+                { "path": "}", "comment": "" }
+              ]
+            }
+          ]
+        },
+        {
+          "heading": "Other Options",
+          "content": [
+            {
+              "type": "list",
+              "items": [
+                "<strong>Make it read-only</strong> — add <code>--tools read,grep,find,ls</code> to the agent args in <code>lifecycle/agent.ts</code>.",
+                "<strong>Filter by label</strong> — edit the workflow file to only trigger on issues with a specific label.",
+                "<strong>Adjust thinking level</strong> — set <code>defaultThinkingLevel</code> to <code>\"low\"</code>, <code>\"medium\"</code>, or <code>\"high\"</code> for different task complexities."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "cards": [
+        {
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "The workflow only responds to repository <strong>owners, members, and collaborators</strong>. Random users cannot trigger the agent on public repos."
+            },
+            {
+              "type": "paragraph",
+              "html": "If you plan to use OpenClaw Intelligence for anything private, <strong>make the repo private</strong>. Public repos mean your conversation history is visible to everyone, but get generous GitHub Actions usage."
+            },
+            {
+              "type": "list",
+              "items": [
+                "<a class=\"link\" href=\"https://github.com/japer-technology/github-openclaw-intelligence/blob/main/.github-openclaw-intelligence/SECURITY.md\" target=\"_blank\" rel=\"noopener\">Security Policy</a>"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "community",
+      "title": "Community",
+      "grid": "grid-2",
+      "cards": [
+        {
+          "heading": "Contributing",
+          "content": [
+            {
+              "type": "list",
+              "items": [
+                "Fork the repo &amp; create a branch from <code>main</code>",
+                "Make small, reviewable increments",
+                "Test locally with <code>bun install</code>",
+                "Open a PR with a clear description"
+              ]
+            },
+            {
+              "type": "paragraph",
+              "html": "Code is TypeScript, executed with Bun. Docs are Markdown.<br>Every commit is permanent and auditable.",
+              "style": "margin-top:.6rem;font-size:.85rem"
+            }
+          ]
+        },
+        {
+          "heading": "Code of Conduct",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Built on the principle that <strong>the active ingredient is human judgment</strong>. The project follows the <a class=\"link\" href=\"https://www.contributor-covenant.org/\" target=\"_blank\" rel=\"noopener\">Contributor Covenant</a> extended by four governing laws:"
+            },
+            {
+              "type": "list",
+              "items": [
+                "<strong>Zeroth:</strong> Protect Humanity",
+                "<strong>First:</strong> Do No Harm",
+                "<strong>Second:</strong> Obey the Human",
+                "<strong>Third:</strong> Preserve Integrity"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "license",
+      "title": "License &amp; Authors",
+      "cards": [
+        {
+          "heading": "MIT License — © 2026 Eric Mourant",
+          "content": [
+            {
+              "type": "paragraph",
+              "html": "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies."
+            },
+            {
+              "type": "paragraph",
+              "html": "<a class=\"link\" href=\"https://github.com/japer-technology/github-openclaw-intelligence/blob/main/.github-openclaw-intelligence/LICENSE.md\" target=\"_blank\" rel=\"noopener\">Full license text →</a>",
+              "style": "margin-top:.5rem"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "footer": {
+    "repoUrl": "https://github.com/japer-technology/github-openclaw-intelligence",
+    "repoName": "japer-technology/github-openclaw-intelligence",
+    "tagline": "OpenClaw Intelligence, Maximum Autonomy"
+  }
+}
