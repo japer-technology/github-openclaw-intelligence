@@ -1,0 +1,391 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  OpenClaw Intelligence — Agent Workflow (Version 1.0.0)                    ║
+# ║                                                                            ║
+# ║  A tool-rich AI agent that lives inside your GitHub repository alongside   ║
+# ║  the GitHub Minimum Intelligence agent.                                    ║
+# ║  GMI responds to `!`, OpenClaw responds to `@`.                            ║
+# ║                                                                            ║
+# ║  WHAT THIS WORKFLOW CONTAINS (three jobs):                                 ║
+# ║    run-install   — Self-installer and upgrader (workflow_dispatch only).    ║
+# ║    run-agent     — AI agent that responds to issues and comments on `@`.   ║
+# ║    run-gitpages  — Publishes the agent's public-fabric to GitHub Pages.    ║
+# ║                                                                            ║
+# ║  Docs: https://github.com/japer-technology/github-minimum-intelligence     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+name: .github-openclaw-intelligence-agent
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRIGGERS
+# ──────────────────────────────────────────────────────────────────────────────
+on:
+  # 1. A new issue is opened → the agent reads it if the title starts with `@`.
+  issues:
+    types: [opened]
+
+  # 2. A comment is added → the agent responds if the comment body starts with `@`.
+  issue_comment:
+    types: [created]
+
+  # 3. Code is pushed to main → triggers a GitHub Pages deployment.
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - ".github/workflows/**"
+
+  # 4. Manual "Run workflow" button → installs or upgrades the agent folder.
+  workflow_dispatch:
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PERMISSIONS
+# ──────────────────────────────────────────────────────────────────────────────
+permissions:
+  contents: write
+  issues: write
+  actions: write
+  pages: write
+  id-token: write
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOBS
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1 — run-install
+  #
+  # Purpose : Self-installer and upgrader. Creates the
+  #           `.github-openclaw-intelligence/` folder and its contents.
+  # Trigger : workflow_dispatch (manual "Run workflow" button only).
+  # ────────────────────────────────────────────────────────────────────────────
+  run-install:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      && github.repository != 'japer-technology/github-minimum-intelligence'
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check for .github-openclaw-intelligence
+        id: check-folder
+        run: |
+          if [ ! -d ".github-openclaw-intelligence" ]; then
+            echo "action=install" >> "$GITHUB_OUTPUT"
+            echo "📦 .github-openclaw-intelligence not found — will install."
+          else
+            LOCAL_VERSION="0.0.0"
+            if [ -f ".github-openclaw-intelligence/VERSION" ]; then
+              LOCAL_VERSION=$(tr -d '[:space:]' < .github-openclaw-intelligence/VERSION)
+            fi
+
+            REMOTE_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/japer-technology/github-minimum-intelligence/main/.github-openclaw-intelligence/VERSION" | tr -d '[:space:]' || true)
+
+            if [ -z "$REMOTE_VERSION" ]; then
+              echo "::warning::Could not fetch remote VERSION — skipping upgrade check."
+              echo "action=skip" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Local VERSION:  $LOCAL_VERSION"
+            echo "Remote VERSION: $REMOTE_VERSION"
+
+            SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+$'
+            if ! [[ "$LOCAL_VERSION" =~ $SEMVER_RE ]] || ! [[ "$REMOTE_VERSION" =~ $SEMVER_RE ]]; then
+              echo "::warning::VERSION format is not valid semver — skipping upgrade check."
+              echo "action=skip" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            IFS='.' read -r L_MAJOR L_MINOR L_PATCH <<< "$LOCAL_VERSION"
+            IFS='.' read -r R_MAJOR R_MINOR R_PATCH <<< "$REMOTE_VERSION"
+
+            NEEDS_UPGRADE=false
+            if [ "$R_MAJOR" -gt "$L_MAJOR" ]; then
+              NEEDS_UPGRADE=true
+            elif [ "$R_MAJOR" -eq "$L_MAJOR" ] && [ "$R_MINOR" -gt "$L_MINOR" ]; then
+              NEEDS_UPGRADE=true
+            elif [ "$R_MAJOR" -eq "$L_MAJOR" ] && [ "$R_MINOR" -eq "$L_MINOR" ] && [ "$R_PATCH" -gt "$L_PATCH" ]; then
+              NEEDS_UPGRADE=true
+            fi
+
+            if [ "$NEEDS_UPGRADE" = true ]; then
+              echo "action=upgrade" >> "$GITHUB_OUTPUT"
+              echo "⬆️  Upgrade available: $LOCAL_VERSION → $REMOTE_VERSION"
+            else
+              echo "action=skip" >> "$GITHUB_OUTPUT"
+              echo "✅ Local version ($LOCAL_VERSION) >= remote version ($REMOTE_VERSION) — nothing to do."
+            fi
+          fi
+
+      - name: Download and install from template
+        if: steps.check-folder.outputs.action != 'skip'
+        run: |
+          set -euo pipefail
+
+          ACTION="${{ steps.check-folder.outputs.action }}"
+          TARGET=".github-openclaw-intelligence"
+
+          curl -fsSL "https://github.com/japer-technology/github-minimum-intelligence/archive/refs/heads/main.zip" \
+            -o /tmp/template.zip
+          unzip -q /tmp/template.zip -d /tmp/template
+
+          EXTRACTED=$(ls -d /tmp/template/github-minimum-intelligence-*)
+
+          rm -rf "$EXTRACTED/$TARGET/node_modules"
+          rm -rf "$EXTRACTED/$TARGET/docs/analysis"
+
+          if [ "$ACTION" = "upgrade" ]; then
+            BACKUP="/tmp/oci-backup"
+            mkdir -p "$BACKUP"
+            [ -f "$TARGET/AGENTS.md" ] && cp "$TARGET/AGENTS.md" "$BACKUP/AGENTS.md"
+            [ -d "$TARGET/.pi" ]       && cp -R "$TARGET/.pi" "$BACKUP/.pi"
+            [ -d "$TARGET/state" ]     && cp -R "$TARGET/state" "$BACKUP/state"
+            [ -d "$TARGET/config" ]    && cp -R "$TARGET/config" "$BACKUP/config"
+
+            rm -rf "$TARGET"
+            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+
+            rm -rf "$TARGET/state"
+
+            [ -f "$BACKUP/AGENTS.md" ] && cp "$BACKUP/AGENTS.md" "$TARGET/AGENTS.md"
+            [ -d "$BACKUP/.pi" ]       && cp -R "$BACKUP/.pi" "$TARGET/.pi"
+            [ -d "$BACKUP/state" ]     && cp -R "$BACKUP/state" "$TARGET/state"
+            [ -d "$BACKUP/config" ]    && cp -R "$BACKUP/config" "$TARGET/config"
+          else
+            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+
+            rm -rf "$TARGET/state"
+
+            cp "$TARGET/install/OPENCLAW-AGENTS.md" "$TARGET/AGENTS.md"
+            mkdir -p "$TARGET/.pi"
+            cp "$TARGET/install/settings.json" "$TARGET/.pi/settings.json"
+          fi
+
+      - name: Ensure .gitignore entries
+        if: steps.check-folder.outputs.action != 'skip'
+        run: |
+          touch .gitignore
+          for entry in "node_modules/" ".github-openclaw-intelligence/node_modules/" ".DS_Store"; do
+            grep -qxF "$entry" .gitignore || echo "$entry" >> .gitignore
+          done
+
+      - name: Ensure .gitattributes entries
+        if: steps.check-folder.outputs.action != 'skip'
+        run: |
+          touch .gitattributes
+          for entry in "memory.log merge=union"; do
+            grep -qxF "$entry" .gitattributes || echo "$entry" >> .gitattributes
+          done
+
+      - name: Commit and push
+        if: steps.check-folder.outputs.action != 'skip'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .github-openclaw-intelligence/ .gitignore .gitattributes
+
+          ACTION="${{ steps.check-folder.outputs.action }}"
+          if [ "$ACTION" = "upgrade" ]; then
+            COMMIT_MSG="chore: upgrade .github-openclaw-intelligence from template"
+          else
+            COMMIT_MSG="chore: install .github-openclaw-intelligence from template"
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "$COMMIT_MSG"
+            git push
+          fi
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2 — run-agent
+  #
+  # Purpose : The core AI agent. Reads the issue (or comment), processes it
+  #           through the OpenClaw runtime, and posts the response.
+  # Trigger : issues.opened (title starts with `@`) OR
+  #           issue_comment.created (body starts with `@`, ignoring bots).
+  # Security: Only collaborators with write/maintain/admin access can trigger.
+  # ────────────────────────────────────────────────────────────────────────────
+  run-agent:
+    runs-on: ubuntu-latest
+
+    # Concurrency: one agent run per issue at a time. Uses a different group
+    # than the GMI so both can run simultaneously on the same issue.
+    concurrency:
+      group: github-openclaw-intelligence-${{ github.repository }}-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+
+    # Trigger guard:
+    #   • Run on new issues whose title starts with `@`.
+    #   • Run on issue comments whose body starts with `@`, but skip bot comments.
+    if: >-
+      (github.event_name == 'issues' && startsWith(github.event.issue.title, '@'))
+      || (github.event_name == 'issue_comment'
+          && !endsWith(github.event.comment.user.login, '[bot]')
+          && startsWith(github.event.comment.body, '@'))
+    steps:
+
+      # 1. AUTHORIZATION — verify the actor has write-level (or higher) access.
+      - name: Authorize
+        id: authorize
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PERM=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission" --jq '.permission' 2>/dev/null || echo "none")
+          echo "Actor: ${{ github.actor }}, Permission: $PERM"
+
+          if [[ "$PERM" != "admin" && "$PERM" != "maintain" && "$PERM" != "write" ]]; then
+            echo "::error::Unauthorized: ${{ github.actor }} has '$PERM' permission"
+            exit 1
+          fi
+
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
+            if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"comment","commentId":${{ github.event.comment.id }},"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}"}' > /tmp/reaction-state.json
+          else
+            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
+            if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}"}' > /tmp/reaction-state.json
+          fi
+
+      # 2. REJECTION FEEDBACK
+      - name: Reject
+        if: ${{ failure() && steps.authorize.outcome == 'failure' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+            gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=-1
+          else
+            gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=-1
+          fi
+
+      # 3. CHECKOUT
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      # 4. SAFETY CHECK
+      - name: Check for .github-openclaw-intelligence
+        id: check-folder
+        run: |
+          if [ -d ".github-openclaw-intelligence" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::.github-openclaw-intelligence folder not found, skipping."
+          fi
+
+      # 5. RUNTIME
+      - name: Setup Bun
+        if: steps.check-folder.outputs.exists == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2"
+
+      # 6. CACHE
+      - name: Cache dependencies
+        if: steps.check-folder.outputs.exists == 'true'
+        uses: actions/cache@v5
+        with:
+          path: .github-openclaw-intelligence/node_modules
+          key: oci-deps-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
+
+      # 7. INSTALL
+      - name: Install dependencies
+        if: steps.check-folder.outputs.exists == 'true'
+        run: cd .github-openclaw-intelligence && bun install --frozen-lockfile
+
+      # 8. BUILD (OpenClaw requires TypeScript compilation)
+      - name: Build
+        if: steps.check-folder.outputs.exists == 'true'
+        run: cd .github-openclaw-intelligence && bun run build
+
+      # 9. RUN THE AGENT
+      - name: Run
+        if: steps.check-folder.outputs.exists == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun .github-openclaw-intelligence/lifecycle/agent.ts
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 3 — run-gitpages
+  #
+  # Purpose : Publish the agent's public-fabric directory as a GitHub Pages site.
+  # Trigger : push to main.
+  # ────────────────────────────────────────────────────────────────────────────
+  run-gitpages:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: "pages-openclaw"
+      cancel-in-progress: false
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check public-fabric exists
+        id: check-folder
+        run: |
+          if [ -d ".github-openclaw-intelligence/public-fabric" ]; then
+            echo "folder_exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ public-fabric directory found."
+          else
+            echo "folder_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Directory .github-openclaw-intelligence/public-fabric not found. Skipping Pages deployment."
+          fi
+
+      - name: Enable Pages
+        if: steps.check-folder.outputs.folder_exists == 'true'
+        id: enable-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --silent 2>/dev/null; then
+            echo "pages_active=true" >> "$GITHUB_OUTPUT"
+            echo "✅ GitHub Pages is already enabled."
+          elif gh api "repos/${{ github.repository }}/pages" \
+            -X POST -f build_type=workflow --silent 2>/dev/null; then
+            echo "pages_active=true" >> "$GITHUB_OUTPUT"
+            echo "✅ GitHub Pages has been enabled."
+          else
+            echo "pages_active=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not enable GitHub Pages automatically. Please enable it manually in repository Settings → Pages → Source → GitHub Actions."
+          fi
+
+      - name: Setup Pages
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.github-openclaw-intelligence/public-fabric'
+
+      - name: Deploy to GitHub Pages
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
