@@ -63,6 +63,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch'
       && github.repository != 'japer-technology/github-minimum-intelligence'
+      && github.repository != 'japer-technology/github-openclaw-intelligence'
     steps:
 
       - name: Checkout
@@ -225,10 +226,13 @@ jobs:
     #   • Run on new issues whose title starts with `@`.
     #   • Run on issue comments whose body starts with `@`, but skip bot comments.
     if: >-
-      (github.event_name == 'issues' && startsWith(github.event.issue.title, '@'))
-      || (github.event_name == 'issue_comment'
-          && !endsWith(github.event.comment.user.login, '[bot]')
-          && startsWith(github.event.comment.body, '@'))
+      github.repository != 'japer-technology/github-openclaw-intelligence'
+      && (
+        (github.event_name == 'issues' && startsWith(github.event.issue.title, '@'))
+        || (github.event_name == 'issue_comment'
+            && !endsWith(github.event.comment.user.login, '[bot]')
+            && startsWith(github.event.comment.body, '@'))
+      )
     steps:
 
       # 1. AUTHORIZATION — verify the actor has write-level (or higher) access.
@@ -331,7 +335,7 @@ jobs:
   # Trigger : push to main.
   # ────────────────────────────────────────────────────────────────────────────
   run-gitpages:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.repository != 'japer-technology/github-openclaw-intelligence'
     runs-on: ubuntu-latest
 
     concurrency:
