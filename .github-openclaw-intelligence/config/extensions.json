@@ -1,0 +1,11 @@
+{
+  "extensions": {
+    "sub-agents": true,
+    "semantic-memory": true,
+    "media-understanding": true,
+    "diff-analysis": true,
+    "multi-model-failover": true,
+    "browser-cdp": true,
+    "multi-search": true
+  }
+}
