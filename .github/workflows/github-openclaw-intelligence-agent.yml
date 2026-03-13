@@ -83,7 +83,7 @@ jobs:
               LOCAL_VERSION=$(tr -d '[:space:]' < .github-openclaw-intelligence/VERSION)
             fi
 
-            REMOTE_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/japer-technology/github-minimum-intelligence/main/.github-openclaw-intelligence/VERSION" | tr -d '[:space:]' || true)
+            REMOTE_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/japer-technology/github-openclaw-intelligence/main/.github-openclaw-intelligence/VERSION" | tr -d '[:space:]' || true)
 
             if [ -z "$REMOTE_VERSION" ]; then
               echo "::warning::Could not fetch remote VERSION — skipping upgrade check."
@@ -130,11 +130,11 @@ jobs:
           ACTION="${{ steps.check-folder.outputs.action }}"
           TARGET=".github-openclaw-intelligence"
 
-          curl -fsSL "https://github.com/japer-technology/github-minimum-intelligence/archive/refs/heads/main.zip" \
+          curl -fsSL "https://github.com/japer-technology/github-openclaw-intelligence/archive/refs/heads/main.zip" \
             -o /tmp/template.zip
           unzip -q /tmp/template.zip -d /tmp/template
 
-          EXTRACTED=$(ls -d /tmp/template/github-minimum-intelligence-*)
+          EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
 
           rm -rf "$EXTRACTED/$TARGET/node_modules"
           rm -rf "$EXTRACTED/$TARGET/docs/analysis"
