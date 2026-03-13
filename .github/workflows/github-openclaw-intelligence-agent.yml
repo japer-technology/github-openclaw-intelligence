@@ -1,16 +1,15 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  OpenClaw Intelligence — Agent Workflow (Version 1.0.0)                      ║
 # ║                                                                              ║
-# ║  A tool-rich AI agent that lives inside your GitHub repository alongside     ║
-# ║  the GitHub Minimum Intelligence agent.                                      ║
-# ║  GMI responds to `!`, OpenClaw responds to `@`.                              ║
+# ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
+# ║  OpenClaw responds to `@`.                                                   ║
 # ║                                                                              ║
 # ║  WHAT THIS WORKFLOW CONTAINS (three jobs):                                   ║
 # ║    run-install   — Self-installer and upgrader (workflow_dispatch only).     ║
 # ║    run-agent     — AI agent that responds to issues and comments on `@`.     ║
 # ║    run-gitpages  — Publishes the agent's public-fabric to GitHub Pages.      ║
 # ║                                                                              ║
-# ║  Docs: https://github.com/japer-technology/github-minimum-intelligence       ║
+# ║  Docs: https://github.com/japer-technology/github-openclaw-intelligence      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 name: github-openclaw-intelligence-agent
@@ -62,7 +61,6 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch'
-      && github.repository != 'japer-technology/github-minimum-intelligence'
       && github.repository != 'japer-technology/github-openclaw-intelligence'
     steps:
 
@@ -216,8 +214,7 @@ jobs:
   run-agent:
     runs-on: ubuntu-latest
 
-    # Concurrency: one agent run per issue at a time. Uses a different group
-    # than the GMI so both can run simultaneously on the same issue.
+    # Concurrency: one agent run per issue at a time.
     concurrency:
       group: github-openclaw-intelligence-${{ github.repository }}-issue-${{ github.event.issue.number }}
       cancel-in-progress: false

@@ -1,8 +1,8 @@
 # OpenClaw Intelligence
 
-> A tool-rich AI agent that lives inside your GitHub repository alongside GitHub Minimum Intelligence.
+> A standalone tool-rich AI agent that lives inside your GitHub repository.
 
-OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It provides a richer tool surface than GMI — including sub-agent orchestration, semantic memory search, media understanding, and multi-model failover — while sharing the same repository, authorization model, and audit trail.
+OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It provides a rich tool surface — including sub-agent orchestration, semantic memory search, media understanding, and multi-model failover — while keeping all session state, file changes, and conversation history in Git.
 
 ---
 
@@ -19,9 +19,8 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 
 | Prefix | Intelligence | Description |
 |--------|-------------|-------------|
-| `!` | Minimum Intelligence (GMI) | Fast, lightweight, focused on repository tasks |
 | `@` | OpenClaw Intelligence | Tool-rich, complex multi-step tasks |
-| _(other)_ | Neither | No agent responds |
+| _(other)_ | None | No agent responds |
 
 ---
 
@@ -117,19 +116,6 @@ OpenClaw's capabilities are configured in `config/extensions.json`:
 | Media understanding (image analysis, OCR, PDF extraction) | ✅ |
 | Diff analysis (dedicated extension) | ✅ |
 | Multi-model failover (automatic provider fallback) | ✅ |
-
----
-
-## Coexistence with GMI
-
-OpenClaw and GMI operate on the same repository with full isolation:
-
-- **Separate folders** — `.github-openclaw-intelligence/` and `.github-minimum-intelligence/`
-- **Separate workflows** — each with its own prefix guard
-- **Separate state** — independent session directories, no shared sessions
-- **Shared authorization** — GitHub collaborator permissions apply to both
-- **Shared audit trail** — all commits in one git log
-- **Cross-intelligence awareness** — via the shared issue thread, not shared state
 
 ---
 
