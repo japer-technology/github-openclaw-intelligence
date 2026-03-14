@@ -9,7 +9,7 @@
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [openclaw](https://github.com/openclaw/openclaw) | ^2026.2.19 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+| [openclaw](https://github.com/openclaw/openclaw) | ^2026.3.12 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
 
 ## Infrastructure Dependencies
 

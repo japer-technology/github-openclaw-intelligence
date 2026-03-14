@@ -15,12 +15,13 @@
     "radius": "12px"
   },
   "hero": {
+    "logoUrl": "https://raw.githubusercontent.com/japer-technology/github-openclaw-intelligence/main/.github-openclaw-intelligence/logo.png",
     "logoAlt": "OpenClaw Intelligence logo",
     "title": "GitHub OpenClaw Intelligence",
     "slug": "japer-technology / github-openclaw-intelligence",
     "tagline": "A repository-local AI framework that uses GitHub\u00a0Issues for conversation, Git for persistent versioned memory, and GitHub\u00a0Actions for execution \u2014 delivering low-infrastructure, auditable, user-owned automation by committing every prompt and response to the codebase.",
     "badges": [
-      { "label": "v1.0.0", "color": "blue" },
+      { "label": "v1.0.1", "color": "blue" },
       { "label": "MIT License", "color": "green" },
       { "label": "TypeScript / Bun", "color": "blue" },
       { "label": "AI-Assisted Development", "color": "purple" },
@@ -293,8 +294,8 @@
               "headers": ["Package", "Version", "Role"],
               "rows": [
                 [
-                  "<a href=\"https://github.com/badlogic/pi-mono\" target=\"_blank\" rel=\"noopener\">@mariozechner/pi-coding-agent</a>",
-                  "0.57.1",
+                  "<a href=\"https://github.com/openclaw/openclaw\" target=\"_blank\" rel=\"noopener\">openclaw</a>",
+                  "^2026.3.12",
                   "Core AI agent \u2014 processes prompts, manages sessions"
                 ]
               ]
