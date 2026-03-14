@@ -317,6 +317,13 @@ jobs:
             echo "No build script found -- Bun runs TypeScript natively, no build needed."
           fi
 
+      # 8b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
+      - name: Setup Node.js
+        if: steps.check-folder.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       # 9. RUN THE AGENT
       - name: Run
         if: steps.check-folder.outputs.exists == 'true'

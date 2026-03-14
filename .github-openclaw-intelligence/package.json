@@ -3,6 +3,6 @@
     "build": "echo 'Bun runs TypeScript natively — no compilation required.'"
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "0.57.1"
+    "openclaw": "^2026.2.19"
   }
 }

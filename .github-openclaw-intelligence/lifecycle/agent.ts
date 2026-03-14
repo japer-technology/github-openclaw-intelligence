@@ -5,7 +5,7 @@
  * PURPOSE
  * ─────────────────────────────────────────────────────────────────────────────
  * This is the main entry point for the OpenClaw Intelligence AI agent.  It
- * receives a GitHub issue (or issue comment) event, runs the `pi` AI agent
+ * receives a GitHub issue (or issue comment) event, runs the OpenClaw agent
  * against the user's prompt, and posts the result back as an issue comment.
  * It also manages all session state so that multi-turn conversations across
  * multiple workflow runs are seamlessly resumed.
@@ -28,16 +28,17 @@
  *      - New issue  → create a fresh session; record the mapping in state/.
  *      - Follow-up  → load the existing session file for conversation context.
  *   4. Build a prompt string from the event payload.
- *   5. Run the `pi` coding agent binary with the prompt (+ prior session if resuming).
+ *   5. Run the `openclaw agent --local --json` command with the prompt.
  *      Agent output is streamed through `tee` to provide a live Actions log AND
- *      persist the raw JSONL to `/tmp/agent-raw.jsonl` for post-processing.
- *   6. Extract the assistant's final text reply from the JSONL output using
- *      `tac` (reverse) + `jq` (parse the last `message_end` event).
- *   7. Persist the issue → session mapping so the next run can resume the conversation.
- *   8. Stage, commit, and push all changes (session log, mapping, repo edits)
+ *      persist the raw output to `/tmp/agent-raw.json` for post-processing.
+ *   6. Extract the assistant's final text reply from the JSON output.
+ *   7. Archive the session transcript from the ephemeral runtime directory to
+ *      the git-tracked `state/sessions/` directory for cross-run persistence.
+ *   8. Persist the issue → session mapping so the next run can resume the conversation.
+ *   9. Stage, commit, and push all changes (session log, mapping, repo edits)
  *      back to the default branch with an automatic retry-on-conflict loop.
- *   9. Post the extracted reply as a new comment on the originating issue.
- *  10. [finally] Add an outcome reaction: 👍 (thumbs up) on success or
+ *  10. Post the extracted reply as a new comment on the originating issue.
+ *  11. [finally] Add an outcome reaction: 👍 (thumbs up) on success or
  *      👎 (thumbs down) on error.  The 🚀 rocket from the Authorize step
  *      is left in place for both success and error cases.
  *
@@ -45,12 +46,16 @@
  * SESSION CONTINUITY
  * ─────────────────────────────────────────────────────────────────────────────
  * OpenClaw Intelligence maintains per-issue session state in:
- *   .github-openclaw-intelligence/state/issues/<number>.json   — maps issue # → session file path
- *   .github-openclaw-intelligence/state/sessions/<timestamp>.jsonl — the `pi` session transcript
+ *   .github-openclaw-intelligence/state/issues/<number>.json   — maps issue # → session ID
+ *   .github-openclaw-intelligence/state/sessions/<id>.jsonl    — the session transcript
  *
- * On every run the agent checks for an existing mapping.  If the mapped session
- * file is still present, the run "resumes" by passing `--session <path>` to `pi`,
- * giving the agent full memory of all prior exchanges for that issue.
+ * The OpenClaw runtime writes session transcripts to its internal directory
+ * (`state/agents/main/sessions/`), which is ephemeral on CI runners (gitignored).
+ * To preserve state across workflow runs, the orchestrator:
+ *   1. BEFORE the run: copies any archived transcript from `state/sessions/`
+ *      into the runtime directory so OpenClaw can locate it by session-id.
+ *   2. AFTER the run: copies the updated transcript back to `state/sessions/`
+ *      where it is committed to git and survives runner teardown.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * PUSH CONFLICT RESOLUTION
@@ -69,33 +74,50 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * DEPENDENCIES
  * ─────────────────────────────────────────────────────────────────────────────
- * - Node.js built-in `fs` module  (existsSync, readFileSync, writeFileSync, mkdirSync)
+ * - Node.js built-in `fs` module  (existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync)
  * - Node.js built-in `path` module (resolve)
  * - GitHub CLI (`gh`)             — must be authenticated via GITHUB_TOKEN
- * - `pi` binary                   — installed by `bun install` from package.json
- * - System tools: `tee`, `tac`, `jq`, `git`, `bash`
+ * - `openclaw` binary             — installed by `bun install` from package.json
+ * - System tools: `tee`, `git`, `bash`
  * - Bun runtime                   — for Bun.spawn and top-level await
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from "fs";
 import { resolve } from "path";
 
 // ─── Paths and event context ───────────────────────────────────────────────────
 // `import.meta.dir` resolves to `.github-openclaw-intelligence/lifecycle/`; stepping up one level
 // gives us the `.github-openclaw-intelligence/` directory which contains `state/` and `node_modules/`.
 const openclawDir = resolve(import.meta.dir, "..");
+const repoRoot = resolve(openclawDir, "..");
 const stateDir = resolve(openclawDir, "state");
 const issuesDir = resolve(stateDir, "issues");
 const sessionsDir = resolve(stateDir, "sessions");
 const piSettingsPath = resolve(openclawDir, ".pi", "settings.json");
 
-// The `pi` CLI requires a repo-root-relative path for `--session-dir`, not an
-// absolute one, so we keep this as a relative string constant.
+// OpenClaw writes session transcripts to its internal agents directory, which
+// is ephemeral on CI runners (gitignored).  We need to copy transcripts
+// between the git-tracked `state/sessions/` and the runtime directory.
+const agentSessionsDir = resolve(stateDir, "agents", "main", "sessions");
+
+// The sessions directory as a relative path from repo root (for git commit messages).
 const sessionsDirRelative = ".github-openclaw-intelligence/state/sessions";
 
 // GitHub enforces a ~65 535 character limit on issue comments; cap at 60 000
 // characters to leave a comfortable safety margin and avoid API rejections.
 const MAX_COMMENT_LENGTH = 60000;
+
+// Maximum time (in ms) to wait for the agent process to produce output.
+// If the agent does not close stdout within this window, both the agent and
+// the `tee` helper are forcefully killed.  5 minutes is generous enough to
+// cover large prompts while still surfacing hangs quickly.
+const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
+
+// After the agent's stdout closes (output fully captured), we give the
+// process a short grace period to exit on its own before killing it.
+// This prevents the script from hanging when the agent keeps running after
+// writing its response.
+const AGENT_EXIT_GRACE_MS = 10_000;
 
 // Parse the full GitHub Actions event payload (contains issue/comment details).
 const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH!, "utf-8"));
@@ -127,7 +149,7 @@ if (!configuredProvider || !configuredModel) {
 }
 
 // Catch whitespace-only or obviously malformed model identifiers early so the
-// pi agent doesn't start up only to fail with an opaque API error.
+// openclaw agent doesn't start up only to fail with an opaque API error.
 if (configuredModel.trim() !== configuredModel || /\s/.test(configuredModel)) {
   throw new Error(
     `Invalid model identifier "${configuredModel}" in ${piSettingsPath}: ` +
@@ -205,29 +227,50 @@ try {
   }
 
   // ── Resolve or create session mapping ───────────────────────────────────────
-  // Each issue maps to exactly one `pi` session file via `state/issues/<n>.json`.
-  // If a mapping exists AND the referenced session file is still present, we resume
-  // the conversation by passing `--session <path>` to `pi`.  Otherwise we start fresh.
+  // Each issue maps to exactly one session via `state/issues/<n>.json`.
+  // If a mapping exists AND the referenced session ID is present, we resume
+  // the conversation by passing `--session-id <id>` to OpenClaw.  Otherwise we start fresh.
   mkdirSync(issuesDir, { recursive: true });
   mkdirSync(sessionsDir, { recursive: true });
+  mkdirSync(agentSessionsDir, { recursive: true });
 
   let mode = "new";
-  let sessionPath = "";
+  let sessionId = "";
   const mappingFile = resolve(issuesDir, `${issueNumber}.json`);
 
   if (existsSync(mappingFile)) {
     const mapping = JSON.parse(readFileSync(mappingFile, "utf-8"));
-    if (existsSync(mapping.sessionPath)) {
+    if (mapping.sessionId) {
       // A prior session exists — resume it to preserve conversation context.
       mode = "resume";
-      sessionPath = mapping.sessionPath;
-      console.log(`Found existing session: ${sessionPath}`);
+      sessionId = mapping.sessionId;
+      console.log(`Found existing session: ${sessionId}`);
+    } else if (mapping.sessionPath && existsSync(mapping.sessionPath)) {
+      // Backward compatibility: check for file-based session paths from pi-era.
+      mode = "resume";
+      sessionId = mapping.sessionId || mapping.sessionPath;
+      console.log(`Found existing session (path): ${sessionId}`);
     } else {
-      // The mapping points to a session file that no longer exists (e.g., cleaned up).
-      console.log("Mapped session file missing, starting fresh");
+      // The mapping points to a session that no longer exists (e.g., cleaned up).
+      console.log("Mapped session missing, starting fresh");
     }
   } else {
     console.log("No session mapping found, starting fresh");
+  }
+
+  // ── Restore session transcript for the OpenClaw runtime ──────────────────
+  // On a fresh CI runner the `agents/` directory is ephemeral (gitignored).
+  // The git-tracked archive lives in `state/sessions/`.  Before invoking the
+  // agent, copy the prior transcript into the runtime directory so OpenClaw
+  // can locate it by session-id and resume the conversation.
+  const resolvedSessionId = sessionId || `issue-${issueNumber}`;
+  if (mode === "resume" && sessionId) {
+    const archivedTranscript = resolve(sessionsDir, `${sessionId}.jsonl`);
+    const runtimeTranscript = resolve(agentSessionsDir, `${sessionId}.jsonl`);
+    if (existsSync(archivedTranscript) && !existsSync(runtimeTranscript)) {
+      copyFileSync(archivedTranscript, runtimeTranscript);
+      console.log(`Restored session transcript: ${archivedTranscript} → ${runtimeTranscript}`);
+    }
   }
 
   // ── Configure git identity ───────────────────────────────────────────────────
@@ -273,85 +316,173 @@ try {
     );
   }
 
-  // ── Run the pi agent ─────────────────────────────────────────────────────────
+  // ── Run the OpenClaw agent ───────────────────────────────────────────────────
+  // Use `openclaw agent --local` for embedded execution without a Gateway.
+  // The --json flag provides structured output for response extraction.
   // Pipe agent output through `tee` so we get:
   //   • a live stream to stdout (visible in the Actions log in real time), and
-  //   • a persisted copy at `/tmp/agent-raw.jsonl` for post-processing below.
-  const piBin = resolve(openclawDir, "node_modules", ".bin", "pi");
-  const piArgs = [
-    piBin,
-    "--mode",
-    "json",
-    "--provider",
-    configuredProvider,
-    "--model",
-    configuredModel,
-    ...(configuredThinking ? ["--thinking", configuredThinking] : []),
-    "--session-dir",
-    sessionsDirRelative,
-    "-p",
+  //   • a persisted copy at `/tmp/agent-raw.json` for post-processing below.
+  const openclawBin = resolve(openclawDir, "node_modules", ".bin", "openclaw");
+  const openclawArgs = [
+    openclawBin,
+    "agent",
+    "--local",
+    "--json",
+    "--message",
     prompt,
+    "--thinking",
+    configuredThinking ?? "high",
+    "--session-id",
+    resolvedSessionId,
   ];
-  if (mode === "resume" && sessionPath) {
-    // Pass the prior session transcript so the agent can recall earlier context.
-    piArgs.push("--session", sessionPath);
+
+  // ── Runtime isolation: source stays raw, runtime goes in .github-openclaw-intelligence ──
+  // Write a temporary config that points the agent's workspace at the repo root
+  // so it can read the raw source code.  All mutable state (sessions, memory,
+  // sqlite, caches) is kept inside .github-openclaw-intelligence/state/ via OPENCLAW_STATE_DIR.
+  const runtimeConfig = {
+    agents: {
+      defaults: {
+        workspace: repoRoot,
+        timeoutSeconds: 600,
+      },
+    },
+  };
+  const runtimeConfigPath = "/tmp/openclaw-runtime.json";
+  writeFileSync(runtimeConfigPath, JSON.stringify(runtimeConfig, null, 2));
+
+  const agentEnv = {
+    ...process.env,
+    OPENCLAW_STATE_DIR: stateDir,
+    OPENCLAW_CONFIG_PATH: runtimeConfigPath,
+    OPENCLAW_OAUTH_DIR: resolve(stateDir, "credentials"),
+    OPENCLAW_HOME: repoRoot,
+  };
+
+  const agent = Bun.spawn(openclawArgs, {
+    stdout: "pipe",
+    stderr: "inherit",
+    env: agentEnv,
+    cwd: repoRoot,
+  });
+  const tee = Bun.spawn(["tee", "/tmp/agent-raw.json"], { stdin: agent.stdout, stdout: "inherit" });
+
+  // ── Timeout-aware wait for output capture ──────────────────────────────────
+  // `tee` exits when the agent's stdout closes (EOF).  If the agent never
+  // closes stdout the race timeout fires, and we kill both processes.
+  let agentTimedOut = false;
+  let agentTimerId: ReturnType<typeof setTimeout> | undefined;
+
+  const teeResult = await Promise.race([
+    tee.exited.then(() => "done" as const),
+    new Promise<"timeout">((resolve) => {
+      agentTimerId = setTimeout(() => resolve("timeout"), AGENT_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(agentTimerId);
+
+  if (teeResult === "timeout") {
+    agentTimedOut = true;
+    console.error(`Agent timed out after ${AGENT_TIMEOUT_MS / 1000}s — killing processes`);
+    agent.kill();
+    tee.kill();
+    await Promise.allSettled([agent.exited, tee.exited]);
   }
 
-  const pi = Bun.spawn(piArgs, { stdout: "pipe", stderr: "inherit" });
-  const tee = Bun.spawn(["tee", "/tmp/agent-raw.jsonl"], { stdin: pi.stdout, stdout: "inherit" });
-  await tee.exited;
+  // ── Grace period: wait for the agent process to exit ───────────────────────
+  // After `tee` exits the output has been fully captured to disk.  Give the
+  // agent a short window to exit on its own; if it doesn't, kill it so the
+  // script can continue with posting the reply and pushing state.
+  if (!agentTimedOut) {
+    let graceTimerId: ReturnType<typeof setTimeout> | undefined;
+    const graceResult = await Promise.race([
+      agent.exited.then(() => "exited" as const),
+      new Promise<"timeout">((resolve) => {
+        graceTimerId = setTimeout(() => resolve("timeout"), AGENT_EXIT_GRACE_MS);
+      }),
+    ]);
+    clearTimeout(graceTimerId);
 
-  // Check if the pi agent exited successfully.
-  const piExitCode = await pi.exited;
-  if (piExitCode !== 0) {
+    if (graceResult === "timeout") {
+      console.log("Agent process did not exit after output was captured — killing it");
+      agent.kill();
+      await agent.exited;
+    }
+  }
+
+  // Check the exit code.  SIGTERM (143 = 128 + 15) is expected when we
+  // killed the process ourselves after the grace period — treat it as success.
+  const agentExitCode = await agent.exited;
+  if (agentExitCode !== 0 && agentExitCode !== 143) {
     // Surface the provider/model in the error so that an invalid or
     // misspelled model ID doesn't fail silently — the most common cause of
-    // unexpected non-zero exits from the pi agent is an unrecognised model.
+    // unexpected non-zero exits from the openclaw agent is an unrecognised model.
     throw new Error(
-      `pi agent exited with code ${piExitCode} (provider: ${configuredProvider}, model: ${configuredModel}). ` +
+      `openclaw agent exited with code ${agentExitCode} (provider: ${configuredProvider}, model: ${configuredModel}). ` +
       `This may indicate an invalid or misspelled model ID in .pi/settings.json. ` +
       `Check the workflow logs above for details.`
     );
   }
 
   // ── Extract final assistant text ─────────────────────────────────────────────
-  // The `pi` agent writes newline-delimited JSON events.  We reverse the file
-  // with `tac` so the most recent events appear first in the `jq` array.  We
-  // then search for the most recent `message_end` where the role is `assistant`
-  // AND the content contains at least one `text` block.  This correctly handles
-  // cases where the final event has empty content (e.g., a 400 API error after
-  // a successful tool call) by falling back to an earlier assistant message.
-  const tac = Bun.spawn(["tac", "/tmp/agent-raw.jsonl"], { stdout: "pipe" });
-  const jq = Bun.spawn(
-    ["jq", "-r", "-s", '[ .[] | select(.type == "message_end" and .message.role == "assistant") | select((.message.content // []) | map(select(.type == "text")) | length > 0) ] | .[0].message.content[] | select(.type == "text") | .text'],
-    { stdin: tac.stdout, stdout: "pipe" }
-  );
-  const agentText = await new Response(jq.stdout).text();
-  await jq.exited;
+  // The `openclaw agent --json` command outputs a JSON envelope with a `payloads`
+  // array containing the response text.  Extract the text from the payloads.
+  // Falls back to reading the raw output as plain text if JSON parsing fails.
+  let agentText = "";
+  try {
+    const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
+    if (rawOutput) {
+      const output = JSON.parse(rawOutput);
+      if (output.payloads && Array.isArray(output.payloads)) {
+        agentText = output.payloads
+          .map((p: { text?: string }) => p.text || "")
+          .filter((t: string) => t.length > 0)
+          .join("\n\n");
+      } else if (typeof output.text === "string") {
+        agentText = output.text;
+      } else if (typeof output === "string") {
+        agentText = output;
+      }
+    }
+  } catch {
+    // If JSON parsing fails, try reading the raw output as plain text.
+    const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
+    agentText = rawOutput;
+  }
 
-  // ── Determine latest session file ────────────────────────────────────────────
-  // After the agent run, the newest `.jsonl` file in the sessions directory is
-  // the session transcript that was just written (or extended).
-  const { stdout: latestSession } = await run([
-    "bash", "-c", `ls -t ${sessionsDirRelative}/*.jsonl 2>/dev/null | head -1`,
-  ]);
+  // ── Archive session transcript to git-tracked state/sessions/ ──────────────
+  // The OpenClaw runtime writes session transcripts to the ephemeral `agents/`
+  // directory (gitignored on CI).  Copy the transcript to `state/sessions/` so
+  // it survives across workflow runs — this is how session state is persisted.
+  let sessionPath = "";
+  const runtimeTranscript = resolve(agentSessionsDir, `${resolvedSessionId}.jsonl`);
+  const archivedTranscript = resolve(sessionsDir, `${resolvedSessionId}.jsonl`);
+  if (existsSync(runtimeTranscript)) {
+    copyFileSync(runtimeTranscript, archivedTranscript);
+    sessionPath = `${sessionsDirRelative}/${resolvedSessionId}.jsonl`;
+    console.log(`Archived session transcript: ${runtimeTranscript} → ${archivedTranscript}`);
+  } else {
+    // If the runtime didn't write a transcript (e.g., the agent errored early),
+    // check if we already have one from a prior run.
+    if (existsSync(archivedTranscript)) {
+      sessionPath = `${sessionsDirRelative}/${resolvedSessionId}.jsonl`;
+    }
+    console.log("No new session transcript found in runtime directory");
+  }
 
   // ── Persist issue → session mapping ─────────────────────────────────────────
   // Write (or overwrite) the mapping file so that the next run for this issue
-  // can locate the correct session transcript and resume the conversation.
-  if (latestSession) {
-    writeFileSync(
-      mappingFile,
-      JSON.stringify({
-        issueNumber,
-        sessionPath: latestSession,
-        updatedAt: new Date().toISOString(),
-      }, null, 2) + "\n"
-    );
-    console.log(`Saved mapping: issue #${issueNumber} -> ${latestSession}`);
-  } else {
-    console.log("Warning: no session file found to map");
-  }
+  // can locate the correct session and resume the conversation.
+  writeFileSync(
+    mappingFile,
+    JSON.stringify({
+      issueNumber,
+      sessionId: resolvedSessionId,
+      sessionPath,
+      updatedAt: new Date().toISOString(),
+    }, null, 2) + "\n"
+  );
+  console.log(`Saved mapping: issue #${issueNumber} -> ${resolvedSessionId}`);
 
   // ── Commit and push state changes ───────────────────────────────────────────
   // Stage all changes (session log, mapping JSON, any files the agent edited),
