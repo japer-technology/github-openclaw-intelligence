@@ -80,7 +80,7 @@
  * - Bun runtime                   — for Bun.spawn and top-level await
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync } from "fs";
 import { resolve } from "path";
 
 // ─── Paths and event context ───────────────────────────────────────────────────
@@ -103,6 +103,18 @@ const legacySessionsDir = resolve(stateDir, "sessions");
 
 // The sessions directory as a relative path from repo root (for git commit messages).
 const sessionsDirRelative = ".github-openclaw-intelligence/state/agents/main/sessions";
+
+// ─── Skills paths ────────────────────────────────────────────────────────────
+// User-customisable skills directory.  Skills placed here (as `<name>/SKILL.md`)
+// are loaded as workspace-level overrides and take precedence over bundled ones.
+const skillsDir = resolve(openclawDir, "skills");
+
+// Skills configuration that controls which bundled skills are allowed and where
+// additional skill directories are located.
+const skillsConfigPath = resolve(openclawDir, "config", "skills.json");
+
+// Bundled skills shipped inside the openclaw npm package.
+const bundledSkillsDir = resolve(openclawDir, "node_modules", "openclaw", "skills");
 
 // GitHub enforces a ~65 535 character limit on issue comments; cap at 60 000
 // characters to leave a comfortable safety margin and avoid API rejections.
@@ -195,6 +207,64 @@ async function gh(...args: string[]): Promise<string> {
   return stdout;
 }
 
+/**
+ * Load the skills configuration from `config/skills.json`.
+ * Returns the parsed JSON object, or an empty default if the file is missing.
+ */
+function loadSkillsConfig(): { skills: { allowBundled?: string[]; load?: { extraDirs?: string[] } } } {
+  if (existsSync(skillsConfigPath)) {
+    return JSON.parse(readFileSync(skillsConfigPath, "utf-8"));
+  }
+  return { skills: {} };
+}
+
+/**
+ * Symlink allowed bundled skills into the local `skills/` directory so that
+ * OpenClaw discovers them on the workspace skill search path.  Existing symlinks
+ * are left in place; missing ones are created; stale ones are skipped.
+ *
+ * This runs once per agent invocation and is idempotent.
+ */
+function linkBundledSkills(allowBundled: string[]): void {
+  if (!existsSync(bundledSkillsDir)) {
+    console.log("Bundled skills directory not found — skipping skill linking");
+    return;
+  }
+  mkdirSync(skillsDir, { recursive: true });
+
+  for (const name of allowBundled) {
+    const source = resolve(bundledSkillsDir, name);
+    const target = resolve(skillsDir, name);
+    if (!existsSync(source)) {
+      console.log(`Bundled skill "${name}" not found in openclaw package — skipping`);
+      continue;
+    }
+    // Skip if the target already exists (symlink or real directory).
+    if (existsSync(target)) continue;
+    try {
+      symlinkSync(source, target, "dir");
+    } catch (err) {
+      console.log(`Could not symlink skill "${name}": ${err}`);
+    }
+  }
+}
+
+/**
+ * Parse a `/skill-name` invocation prefix from the user's prompt.
+ * Returns `{ skillName, remainder }` if a skill invocation was detected,
+ * or `null` if the prompt does not start with a `/skill-name` pattern.
+ *
+ * Examples:
+ *   "@ /gh-issues owner/repo --label bug"  → { skillName: "gh-issues", remainder: "owner/repo --label bug" }
+ *   "@ /weather London"                    → { skillName: "weather", remainder: "London" }
+ *   "@ Tell me about X"                    → null
+ */
+function parseSkillInvocation(prompt: string): { skillName: string; remainder: string } | null {
+  const match = prompt.match(/^\s*\/([a-zA-Z0-9_-]+)\s*(.*)/s);
+  if (!match) return null;
+  return { skillName: match[1], remainder: match[2].trim() };
+}
+
 // ─── Restore reaction state from Authorize step ─────────────────────
 // The Authorize step writes the 🚀 reaction metadata to
 // `/tmp/reaction-state.json`.  We read it here so the `finally` block can
@@ -225,6 +295,25 @@ try {
     prompt = event.comment.body.replace(/^@\s*/, "");
   } else {
     prompt = `${title.replace(/^@\s*/, "")}\n\n${body}`;
+  }
+
+  // ── Parse skill invocation from prompt ──────────────────────────────────────
+  // If the prompt starts with `/skill-name`, extract the skill name and rewrite
+  // the prompt so OpenClaw invokes the named skill.  For example:
+  //   "@ /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
+  //   "@ /weather London"                    → skill "weather", prompt "London"
+  const skillInvocation = parseSkillInvocation(prompt);
+  if (skillInvocation) {
+    console.log(`Skill invocation detected: /${skillInvocation.skillName}`);
+    prompt = `Use the "${skillInvocation.skillName}" skill to: ${skillInvocation.remainder}`;
+  }
+
+  // ── Load skills configuration and link bundled skills ──────────────────────
+  const skillsConfig = loadSkillsConfig();
+  const allowBundled = skillsConfig.skills?.allowBundled ?? [];
+  if (allowBundled.length > 0) {
+    linkBundledSkills(allowBundled);
+    console.log(`Skills enabled: ${allowBundled.join(", ")}`);
   }
 
   // ── Resolve or create session mapping ───────────────────────────────────────
@@ -341,11 +430,24 @@ try {
   // Write a temporary config that points the agent's workspace at the repo root
   // so it can read the raw source code.  All mutable state (sessions, memory,
   // sqlite, caches) is kept inside .github-openclaw-intelligence/state/ via OPENCLAW_STATE_DIR.
-  const runtimeConfig = {
+  // The skills section enables bundled skills listed in config/skills.json and
+  // adds the local skills/ directory as an extra search path.
+  const extraDirs = [
+    skillsDir,
+    ...(skillsConfig.skills?.load?.extraDirs ?? []),
+  ].filter(Boolean);
+
+  const runtimeConfig: Record<string, unknown> = {
     agents: {
       defaults: {
         workspace: repoRoot,
         timeoutSeconds: 600,
+      },
+    },
+    skills: {
+      allowBundled: allowBundled,
+      load: {
+        extraDirs,
       },
     },
   };
@@ -361,6 +463,9 @@ try {
     // all credential types).  The directory is named "credentials" for clarity.
     OPENCLAW_OAUTH_DIR: resolve(stateDir, "credentials"),
     OPENCLAW_HOME: openclawDir,
+    // Point OpenClaw at the bundled skills directory shipped in the npm package
+    // so the runtime can discover them without relying on path-walking heuristics.
+    OPENCLAW_BUNDLED_SKILLS_DIR: bundledSkillsDir,
   };
 
   const agent = Bun.spawn(openclawArgs, {
