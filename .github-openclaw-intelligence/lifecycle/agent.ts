@@ -361,7 +361,7 @@ try {
     // for its credential storage path (despite the "oauth" naming, it covers
     // all credential types).  The directory is named "credentials" for clarity.
     OPENCLAW_OAUTH_DIR: resolve(stateDir, "credentials"),
-    OPENCLAW_HOME: repoRoot,
+    OPENCLAW_HOME: openclawDir,
   };
 
   const agent = Bun.spawn(openclawArgs, {
