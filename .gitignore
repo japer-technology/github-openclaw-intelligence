@@ -5,4 +5,7 @@ node_modules/
 .github-openclaw-intelligence/state/agents/main/*
 !.github-openclaw-intelligence/state/agents/main/sessions/
 .github-openclaw-intelligence/state/credentials/
+.github-openclaw-intelligence/skills/*
+!.github-openclaw-intelligence/skills/.gitkeep
+.github-openclaw-intelligence/package-lock.json
 .DS_Store

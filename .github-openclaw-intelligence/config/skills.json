@@ -1,0 +1,19 @@
+{
+  "skills": {
+    "allowBundled": [
+      "gh-issues",
+      "github",
+      "weather",
+      "summarize",
+      "coding-agent",
+      "healthcheck",
+      "oracle",
+      "session-logs",
+      "nano-pdf",
+      "xurl"
+    ],
+    "load": {
+      "extraDirs": []
+    }
+  }
+}

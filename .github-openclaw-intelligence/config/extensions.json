@@ -7,5 +7,6 @@
     "multi-model-failover": true,
     "browser-cdp": true,
     "multi-search": true
-  }
+  },
+  "skills": "config/skills.json"
 }

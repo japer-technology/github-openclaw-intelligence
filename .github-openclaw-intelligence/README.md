@@ -39,7 +39,8 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 ├── SECURITY.md
 ├── VERSION
 ├── config/
-│   └── extensions.json            # Extension and skill activation
+│   ├── extensions.json            # Extension and skill activation
+│   └── skills.json                # Bundled skill allowlist and extra dirs
 ├── docs/
 ├── install/
 │   ├── OPENCLAW-AGENTS.md         # Default AGENTS.md for fresh installs
@@ -48,6 +49,7 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 │   └── agent.ts                   # Core orchestrator
 ├── package.json
 ├── public-fabric/                 # GitHub Pages content
+├── skills/                        # Runtime-linked skills (symlinks to bundled)
 └── state/
     ├── issues/                    # Issue-to-session mappings
     ├── sessions/                  # Conversation transcripts (JSONL)
@@ -96,6 +98,86 @@ OpenClaw's capabilities are configured in `config/extensions.json`:
     "multi-model-failover": true,
     "browser-cdp": true,
     "multi-search": true
+  },
+  "skills": "config/skills.json"
+}
+```
+
+---
+
+## Skills
+
+OpenClaw ships with bundled skills that provide domain-specific capabilities. Skills are configured in `config/skills.json`:
+
+```json
+{
+  "skills": {
+    "allowBundled": [
+      "gh-issues",
+      "github",
+      "weather",
+      "summarize",
+      "coding-agent",
+      "healthcheck",
+      "oracle",
+      "session-logs",
+      "nano-pdf",
+      "xurl"
+    ],
+    "load": {
+      "extraDirs": []
+    }
+  }
+}
+```
+
+### Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| `gh-issues` | Fetch GitHub issues, spawn sub-agents to implement fixes and open PRs |
+| `github` | GitHub operations via `gh` CLI: issues, PRs, CI runs, code review |
+| `weather` | Get current weather and forecasts via wttr.in |
+| `summarize` | Summarize text, files, or URLs |
+| `coding-agent` | Dedicated code review and editing agent |
+| `healthcheck` | System health and diagnostics |
+| `oracle` | Knowledge base queries |
+| `session-logs` | View and manage session transcripts |
+| `nano-pdf` | PDF extraction and analysis |
+| `xurl` | URL fetching and web content extraction |
+
+### Direct Skill Invocation
+
+Issue authors can invoke a skill directly by prefixing the prompt with `/skill-name`:
+
+```
+@ /gh-issues owner/repo --label bug
+@ /weather London
+@ /github pr list --repo owner/repo
+```
+
+The `@` prefix routes to the agent, and the `/skill-name` tells it which skill to use. The remainder of the message is passed as the skill's input.
+
+### Adding Custom Skills
+
+Place a `SKILL.md` file in a subdirectory of `skills/`:
+
+```
+.github-openclaw-intelligence/skills/my-skill/SKILL.md
+```
+
+Custom skills in this directory take precedence over bundled ones with the same name. See the [OpenClaw skills documentation](https://docs.openclaw.ai/tools/skills) for the SKILL.md format.
+
+### Adding Extra Skill Directories
+
+To load skills from additional directories, add paths to the `load.extraDirs` array in `config/skills.json`:
+
+```json
+{
+  "skills": {
+    "load": {
+      "extraDirs": ["/path/to/my-skills"]
+    }
   }
 }
 ```
