@@ -246,9 +246,11 @@ try {
       sessionId = mapping.sessionId;
       console.log(`Found existing session: ${sessionId}`);
     } else if (mapping.sessionPath && existsSync(mapping.sessionPath)) {
-      // Backward compatibility: check for file-based session paths from pi-era.
+      // Backward compatibility: extract a session ID from the pi-era file path.
+      // e.g. ".github-openclaw-intelligence/state/sessions/1234567890.jsonl" → "1234567890"
       mode = "resume";
-      sessionId = mapping.sessionId || mapping.sessionPath;
+      const basename = mapping.sessionPath.split("/").pop() ?? "";
+      sessionId = basename.replace(/\.jsonl$/, "") || `issue-${issueNumber}`;
       console.log(`Found existing session (path): ${sessionId}`);
     } else {
       // The mapping points to a session that no longer exists (e.g., cleaned up).
@@ -355,6 +357,9 @@ try {
     ...process.env,
     OPENCLAW_STATE_DIR: stateDir,
     OPENCLAW_CONFIG_PATH: runtimeConfigPath,
+    // OPENCLAW_OAUTH_DIR is the env var name that the OpenClaw runtime reads
+    // for its credential storage path (despite the "oauth" naming, it covers
+    // all credential types).  The directory is named "credentials" for clarity.
     OPENCLAW_OAUTH_DIR: resolve(stateDir, "credentials"),
     OPENCLAW_HOME: repoRoot,
   };

@@ -3,6 +3,6 @@
     "build": "echo 'Bun runs TypeScript natively — no compilation required.'"
   },
   "dependencies": {
-    "openclaw": "^2026.2.19"
+    "openclaw": "^2026.3.12"
   }
 }
