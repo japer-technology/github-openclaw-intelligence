@@ -309,7 +309,13 @@ jobs:
       # 8. BUILD (placeholder — Bun runs TypeScript natively)
       - name: Build
         if: steps.check-folder.outputs.exists == 'true'
-        run: cd .github-openclaw-intelligence && bun run build
+        run: |
+          cd .github-openclaw-intelligence
+          if jq -e '.scripts.build' package.json > /dev/null 2>&1; then
+            bun run build
+          else
+            echo "No build script found -- Bun runs TypeScript natively, no build needed."
+          fi
 
       # 9. RUN THE AGENT
       - name: Run
