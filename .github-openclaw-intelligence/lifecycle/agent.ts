@@ -97,6 +97,10 @@ const piSettingsPath = resolve(openclawDir, ".pi", "settings.json");
 // auditability — no manual copy choreography is needed.
 const sessionsDir = resolve(stateDir, "agents", "main", "sessions");
 
+// Legacy location where session transcripts were archived before native
+// session management.  Used only for one-time migration of existing sessions.
+const legacySessionsDir = resolve(stateDir, "sessions");
+
 // The sessions directory as a relative path from repo root (for git commit messages).
 const sessionsDirRelative = ".github-openclaw-intelligence/state/agents/main/sessions";
 
@@ -262,7 +266,7 @@ try {
   // archive location (state/sessions/) but not in OpenClaw's native
   // directory, migrate it so the runtime can find it by session-id.
   if (mode === "resume" && sessionId) {
-    const legacyTranscript = resolve(stateDir, "sessions", `${sessionId}.jsonl`);
+    const legacyTranscript = resolve(legacySessionsDir, `${sessionId}.jsonl`);
     const nativeTranscript = resolve(sessionsDir, `${sessionId}.jsonl`);
     if (existsSync(legacyTranscript) && !existsSync(nativeTranscript)) {
       copyFileSync(legacyTranscript, nativeTranscript);
