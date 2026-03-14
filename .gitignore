@@ -1,3 +1,5 @@
 node_modules/
 .github-openclaw-intelligence/node_modules/
+.github-openclaw-intelligence/state/agents/
+.github-openclaw-intelligence/state/credentials/
 .DS_Store

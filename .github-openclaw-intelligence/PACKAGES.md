@@ -9,7 +9,7 @@
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [@mariozechner/pi-coding-agent](https://github.com/badlogic/pi-mono) | 0.57.1 | Coding agent CLI with read, bash, edit, and write tools and session management. This is the core AI agent that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+| [openclaw](https://github.com/openclaw/openclaw) | ^2026.2.19 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
 
 ## Infrastructure Dependencies
 
@@ -21,6 +21,7 @@ These are not package dependencies but are required for the system to function:
 | [GitHub Issues](https://docs.github.com/en/issues) | Used as the conversation interface. Each issue maps to a persistent AI conversation thread. |
 | [Git](https://git-scm.com/) | All session state, conversation history, and agent edits are committed to the repository. Git serves as the memory and storage layer. |
 | [Bun](https://bun.sh) | JavaScript/TypeScript runtime used to execute the agent orchestrator and install dependencies. |
+| [Node.js](https://nodejs.org/) | Required by the OpenClaw CLI binary (>= 22). Installed alongside Bun in the workflow. |
 | [gh CLI](https://cli.github.com/) | GitHub's official CLI tool, used by the agent lifecycle scripts to interact with the GitHub API (fetching issues, posting comments, managing reactions). |
 
 ## GitHub Actions Workflow Dependencies
@@ -29,8 +30,9 @@ These are referenced in `.github/workflows/`:
 
 | Action | Workflow | Description |
 |--------|----------|-------------|
-| [actions/checkout@v6](https://github.com/actions/checkout) | agent | Checks out the repository so the agent can read and write files. |
+| [actions/checkout@v4](https://github.com/actions/checkout) | agent | Checks out the repository so the agent can read and write files. |
 | [oven-sh/setup-bun@v2](https://github.com/oven-sh/setup-bun) | agent | Installs the Bun runtime in the GitHub Actions environment. |
+| [actions/setup-node@v4](https://github.com/actions/setup-node) | agent | Installs Node.js 22 required by the OpenClaw CLI binary. |
 | [actions/cache@v5](https://github.com/actions/cache) | agent | Caches `node_modules` keyed on the `bun.lock` hash to speed up dependency installation. |
 | [actions/configure-pages@v5](https://github.com/actions/configure-pages) | agent | Configures GitHub Pages deployment. |
 | [actions/upload-pages-artifact@v4](https://github.com/actions/upload-pages-artifact) | agent | Uploads the static site artifact from `.github-openclaw-intelligence/public-fabric/`. |
@@ -52,13 +54,15 @@ An API key from at least one supported LLM provider is needed:
 
 ## Transitive Dependencies (notable)
 
-These are pulled in transitively by `@mariozechner/pi-coding-agent`:
+These are pulled in transitively by `openclaw`:
 
 | Package | Description |
 |---------|-------------|
+| `@mariozechner/pi-coding-agent` | Coding agent CLI used internally by OpenClaw for AI agent capabilities. |
+| `@mariozechner/pi-ai` | AI provider abstraction layer used by OpenClaw. |
 | `@anthropic-ai/sdk` | Official Anthropic API client for Claude models. |
-| `@aws-sdk/client-bedrock-runtime` | AWS Bedrock client for accessing models via AWS infrastructure. |
+| `@aws-sdk/client-bedrock` | AWS Bedrock client for accessing models via AWS infrastructure. |
 | `openai` | Official OpenAI API client. |
 | `@google/genai` | Google's Generative AI SDK for Gemini models. |
-| `fast-xml-parser` | Fast XML parser used by AWS SDK internals. |
-| `tslib` | TypeScript runtime helpers used throughout the dependency tree. |
+| `express` | Web framework used by OpenClaw's gateway server. |
+| `playwright-core` | Browser automation used by OpenClaw's browser capabilities. |
