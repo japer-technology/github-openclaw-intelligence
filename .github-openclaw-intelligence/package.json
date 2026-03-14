@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "echo 'Bun runs TypeScript natively — no compilation required.'"
+  },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "0.57.1"
   }

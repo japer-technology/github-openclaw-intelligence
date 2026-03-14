@@ -306,7 +306,7 @@ jobs:
         if: steps.check-folder.outputs.exists == 'true'
         run: cd .github-openclaw-intelligence && bun install --frozen-lockfile
 
-      # 8. BUILD (OpenClaw requires TypeScript compilation)
+      # 8. BUILD (placeholder — Bun runs TypeScript natively)
       - name: Build
         if: steps.check-folder.outputs.exists == 'true'
         run: cd .github-openclaw-intelligence && bun run build
