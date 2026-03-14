@@ -348,10 +348,11 @@ jobs:
   # JOB 3 — run-gitpages
   #
   # Purpose : Publish the agent's public-fabric directory as a GitHub Pages site.
-  # Trigger : push to main.
+  # Trigger : all events (after run-agent / run-install finish, if applicable).
   # ────────────────────────────────────────────────────────────────────────────
   run-gitpages:
-    if: github.event_name == 'push' && github.repository != 'japer-technology/github-openclaw-intelligence'
+    needs: [run-agent, run-install]
+    if: always() && !cancelled() && github.repository != 'japer-technology/github-openclaw-intelligence'
     runs-on: ubuntu-latest
 
     concurrency:
@@ -365,6 +366,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Check public-fabric exists
         id: check-folder
