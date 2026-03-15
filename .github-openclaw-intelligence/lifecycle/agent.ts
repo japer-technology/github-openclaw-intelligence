@@ -654,6 +654,9 @@ try {
         // Add outcome reaction to the issue itself.
         await gh("api", `repos/${repo}/issues/${issueNumber}/reactions`, "-f", `content=${outcomeContent}`);
       }
+      if (succeeded) {
+        console.log("Thumbs up is done!");
+      }
     } catch (e) {
       // Log but do not re-throw — a failed reaction should not mask the original error.
       console.error("Failed to add outcome reaction:", e);
