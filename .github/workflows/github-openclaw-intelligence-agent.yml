@@ -136,6 +136,7 @@ jobs:
 
           rm -rf "$EXTRACTED/$TARGET/node_modules"
           rm -rf "$EXTRACTED/$TARGET/docs/analysis"
+          rm -rf "$EXTRACTED/$TARGET/public-fabric"
 
           if [ "$ACTION" = "upgrade" ]; then
             BACKUP="/tmp/oci-backup"
