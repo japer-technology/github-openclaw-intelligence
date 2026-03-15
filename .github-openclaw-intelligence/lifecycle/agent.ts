@@ -33,9 +33,10 @@
  *      persist the raw output to `/tmp/agent-raw.json` for post-processing.
  *   6. Extract the assistant's final text reply from the JSON output.
  *   7. Persist the issue → session mapping so the next run can resume the conversation.
- *   8. Stage, commit, and push all changes (session log, mapping, repo edits)
+ *   8. Post the extracted reply as a new comment on the originating issue.
+ *      This happens before the git push so the user sees the response quickly.
+ *   9. Stage, commit, and push all changes (session log, mapping, repo edits)
  *      back to the default branch with an automatic retry-on-conflict loop.
- *   9. Post the extracted reply as a new comment on the originating issue.
  *  10. [finally] Add an outcome reaction: 👍 (thumbs up) on success or
  *      👎 (thumbs down) on error.  The 🚀 rocket from the Authorize step
  *      is left in place for both success and error cases.
@@ -581,6 +582,16 @@ try {
   );
   console.log(`Saved mapping: issue #${issueNumber} -> ${resolvedSessionId}`);
 
+  // ── Post reply as issue comment ──────────────────────────────────────────────
+  // Post the comment immediately so the user sees the response as soon as
+  // possible, before the potentially slow git push operation.
+  // Guard against empty/null responses — post an error message instead of silence.
+  const trimmedText = agentText.trim();
+  const commentBody = trimmedText.length > 0
+    ? trimmedText.slice(0, MAX_COMMENT_LENGTH)
+    : `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
+  await gh("issue", "comment", String(issueNumber), "--body", commentBody);
+
   // ── Commit and push state changes ───────────────────────────────────────────
   // Stage all changes (session log, mapping JSON, any files the agent edited),
   // commit only if the index is dirty, then push with a retry-on-conflict loop.
@@ -611,22 +622,18 @@ try {
     }
   }
   if (!pushSucceeded) {
+    // Post a warning comment so the user knows state was not persisted, then throw.
+    try {
+      await gh("issue", "comment", String(issueNumber), "--body",
+        `⚠️ **Warning:** The agent's session state could not be pushed to the repository. Conversation context may not be preserved for follow-up comments. See the [workflow run logs](https://github.com/${repo}/actions) for details.`);
+    } catch (e) {
+      console.error("Failed to post push-failure warning comment:", e);
+    }
     throw new Error(
       "All 10 push attempts failed. Auto-reconciliation could not be completed. " +
       "Session state was not persisted to remote. Check the workflow logs for details."
     );
   }
-
-  // ── Post reply as issue comment ──────────────────────────────────────────────
-  // Guard against empty/null responses — post an error message instead of silence.
-  const trimmedText = agentText.trim();
-  let commentBody = trimmedText.length > 0
-    ? trimmedText.slice(0, MAX_COMMENT_LENGTH)
-    : `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
-  if (!pushSucceeded) {
-    commentBody += `\n\n---\n⚠️ **Warning:** The agent's session state could not be pushed to the repository. Conversation context may not be preserved for follow-up comments. See the [workflow run logs](https://github.com/${repo}/actions) for details.`;
-  }
-  await gh("issue", "comment", String(issueNumber), "--body", commentBody);
 
   // Mark the run as successful so the `finally` block adds 👍 instead of 👎.
   succeeded = true;
