@@ -114,6 +114,17 @@ const skillsDir = resolve(openclawDir, "skills");
 // additional skill directories are located.
 const skillsConfigPath = resolve(openclawDir, "config", "skills.json");
 
+// Extensions configuration that controls which OpenClaw capabilities are enabled
+// (e.g. sub-agents, semantic-memory, browser-cdp, multi-search).
+const extensionsConfigPath = resolve(openclawDir, "config", "extensions.json");
+
+// AGENTS.md is the user-facing agent identity file (GitHub convention).  Its
+// content is written to SOUL at runtime so the OpenClaw runtime reads it as the
+// agent's identity — bridging the GitHub AGENTS.md convention with OpenClaw's
+// native SOUL system.
+const agentsMdPath = resolve(openclawDir, "AGENTS.md");
+const soulPath = resolve(openclawDir, "SOUL");
+
 // Bundled skills shipped inside the openclaw npm package.
 const bundledSkillsDir = resolve(openclawDir, "node_modules", "openclaw", "skills");
 
@@ -220,6 +231,39 @@ function loadSkillsConfig(): { skills: { allowBundled?: string[]; load?: { extra
 }
 
 /**
+ * Load the extensions configuration from `config/extensions.json`.
+ * Returns the extensions object (e.g. `{ "sub-agents": true, "browser-cdp": true }`)
+ * or an empty object if the file is missing or has no extensions key.
+ */
+function loadExtensionsConfig(): Record<string, boolean> {
+  if (existsSync(extensionsConfigPath)) {
+    const parsed = JSON.parse(readFileSync(extensionsConfigPath, "utf-8"));
+    return parsed.extensions ?? {};
+  }
+  return {};
+}
+
+/**
+ * Generate a SOUL identity file from AGENTS.md so that the OpenClaw runtime
+ * reads it as the agent's personality and standing orders.
+ *
+ * This bridges the GitHub AGENTS.md convention with OpenClaw's native SOUL
+ * system.  The SOUL file is written at runtime and gitignored — AGENTS.md
+ * remains the single source of truth for the agent's identity.
+ *
+ * If AGENTS.md is absent or contains only the default placeholder text,
+ * no SOUL file is generated and the agent runs with OpenClaw defaults.
+ */
+function generateSoulFromAgentsMd(): void {
+  if (!existsSync(agentsMdPath)) return;
+  const content = readFileSync(agentsMdPath, "utf-8").trim();
+  // Skip the default placeholder — it carries no meaningful instructions.
+  if (!content || content.includes("_No identity yet.")) return;
+  writeFileSync(soulPath, content);
+  console.log("Generated SOUL from AGENTS.md");
+}
+
+/**
  * Symlink allowed bundled skills into the local `skills/` directory so that
  * OpenClaw discovers them on the workspace skill search path.  Existing symlinks
  * are left in place; missing ones are created; stale ones are skipped.
@@ -317,6 +361,21 @@ try {
     console.log(`Skills enabled: ${allowBundled.join(", ")}`);
   }
 
+  // ── Load extensions configuration ─────────────────────────────────────────
+  // Extensions control which OpenClaw capabilities are active (sub-agents,
+  // semantic-memory, browser-cdp, multi-search, etc.).  The config is merged
+  // into the runtime JSON so the OpenClaw process receives them.
+  const extensions = loadExtensionsConfig();
+  const enabledExtensions = Object.entries(extensions).filter(([, v]) => v).map(([k]) => k);
+  if (enabledExtensions.length > 0) {
+    console.log(`Extensions enabled: ${enabledExtensions.join(", ")}`);
+  }
+
+  // ── Generate SOUL from AGENTS.md ──────────────────────────────────────────
+  // Bridge the GitHub AGENTS.md convention with OpenClaw's native identity
+  // system so that user-defined standing orders are respected by the runtime.
+  generateSoulFromAgentsMd();
+
   // ── Resolve or create session mapping ───────────────────────────────────────
   // Each issue maps to exactly one session via `state/issues/<n>.json`.
   // If a mapping exists AND the referenced session ID is present, we resume
@@ -410,6 +469,9 @@ try {
   // ── Run the OpenClaw agent ───────────────────────────────────────────────────
   // Use `openclaw agent --local` for embedded execution without a Gateway.
   // The --json flag provides structured output for response extraction.
+  // The --model and --provider flags are passed explicitly from the committed
+  // `.pi/settings.json` to prevent provider/model drift from any host-level
+  // OpenClaw configuration that may be present on the runner image.
   // Pipe agent output through `tee` so we get:
   //   • a live stream to stdout (visible in the Actions log in real time), and
   //   • a persisted copy at `/tmp/agent-raw.json` for post-processing below.
@@ -419,6 +481,10 @@ try {
     "agent",
     "--local",
     "--json",
+    "--model",
+    configuredModel,
+    "--provider",
+    configuredProvider,
     "--message",
     prompt,
     "--thinking",
@@ -433,6 +499,8 @@ try {
   // sqlite, caches) is kept inside .github-openclaw-intelligence/state/ via OPENCLAW_STATE_DIR.
   // The skills section enables bundled skills listed in config/skills.json and
   // adds the local skills/ directory as an extra search path.
+  // The extensions section forwards config/extensions.json so the OpenClaw runtime
+  // activates the full set of capabilities (sub-agents, semantic-memory, browser-cdp, etc.).
   const extraDirs = [
     skillsDir,
     ...(skillsConfig.skills?.load?.extraDirs ?? []),
@@ -451,6 +519,7 @@ try {
         extraDirs,
       },
     },
+    extensions,
   };
   const runtimeConfigPath = "/tmp/openclaw-runtime.json";
   writeFileSync(runtimeConfigPath, JSON.stringify(runtimeConfig, null, 2));
