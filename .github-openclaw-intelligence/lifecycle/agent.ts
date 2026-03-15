@@ -224,10 +224,13 @@ async function gh(...args: string[]): Promise<string> {
  * Returns the parsed JSON object, or an empty default if the file is missing.
  */
 function loadSkillsConfig(): { skills: { allowBundled?: string[]; load?: { extraDirs?: string[] } } } {
-  if (existsSync(skillsConfigPath)) {
+  if (!existsSync(skillsConfigPath)) return { skills: {} };
+  try {
     return JSON.parse(readFileSync(skillsConfigPath, "utf-8"));
+  } catch (err) {
+    console.log(`Could not load skills config: ${err}`);
+    return { skills: {} };
   }
-  return { skills: {} };
 }
 
 /**
@@ -398,7 +401,12 @@ try {
   const mappingFile = resolve(issuesDir, `${issueNumber}.json`);
 
   if (existsSync(mappingFile)) {
-    const mapping = JSON.parse(readFileSync(mappingFile, "utf-8"));
+    let mapping: { sessionId?: string; sessionPath?: string } = {};
+    try {
+      mapping = JSON.parse(readFileSync(mappingFile, "utf-8"));
+    } catch (err) {
+      console.log(`Could not parse session mapping file ${mappingFile}: ${err} — starting fresh`);
+    }
     if (mapping.sessionId) {
       // A prior session exists — resume it to preserve conversation context.
       mode = "resume";
@@ -635,8 +643,13 @@ try {
     }
   } catch {
     // If JSON parsing fails, try reading the raw output as plain text.
-    const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
-    agentText = rawOutput;
+    try {
+      const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
+      agentText = rawOutput;
+    } catch {
+      // File does not exist or is unreadable — leave agentText empty.
+      console.log("Could not read /tmp/agent-raw.json — agent produced no output");
+    }
   }
 
   // ── Resolve session path for the issue mapping ──────────────────────────────

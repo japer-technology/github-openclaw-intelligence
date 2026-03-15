@@ -264,10 +264,12 @@
 
         case "codeblock":
           var lines = block.lines.map(function (l) {
-            if (!l.path && !l.comment) return "";
-            var pad = l.path.length;
+            var lPath = l.path || "";
+            var lComment = l.comment || "";
+            if (!lPath && !lComment) return "";
+            var pad = lPath.length;
             var spacer = " ".repeat(Math.max(0, 26 - pad));
-            return l.path + spacer + '<span style="color:var(--accent)">' + l.comment + "</span>";
+            return lPath + spacer + '<span style="color:var(--accent)">' + lComment + "</span>";
           }).join("\n");
           return '<pre style="color:var(--muted);font-size:.85rem;overflow-x:auto;line-height:1.8"><code>' + lines + "</code></pre>";
 
@@ -279,7 +281,7 @@
     function renderCard(card) {
       var html = '<div class="card">';
       if (card.heading) {
-        html += "<h3>" + card.heading;
+        html += "<h3>" + esc(card.heading);
         if (card.headingSuffix) {
           html += ' <span style="color:var(--muted);font-weight:400;font-size:.85rem">' + esc(card.headingSuffix) + "</span>";
         }
@@ -293,7 +295,7 @@
 
     function renderSection(section) {
       var idAttr = section.id ? ' id="' + esc(section.id) + '"' : "";
-      var html = '<section class="reveal"' + idAttr + ' aria-label="' + esc(section.title) + '"><div class="section-title">' + section.title + "</div>";
+      var html = '<section class="reveal"' + idAttr + ' aria-label="' + esc(section.title) + '"><div class="section-title">' + esc(section.title) + "</div>";
       if (section.grid) {
         html += '<div class="grid ' + esc(section.grid) + '">';
         section.cards.forEach(function (c) { html += renderCard(c); });
