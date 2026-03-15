@@ -228,7 +228,7 @@ function loadSkillsConfig(): { skills: { allowBundled?: string[]; load?: { extra
   try {
     return JSON.parse(readFileSync(skillsConfigPath, "utf-8"));
   } catch (err) {
-    console.log(`Could not load skills config: ${err}`);
+    console.log(`Could not parse skills config (${err}) — using default empty configuration`);
     return { skills: {} };
   }
 }
@@ -648,7 +648,7 @@ try {
       agentText = rawOutput;
     } catch {
       // File does not exist or is unreadable — leave agentText empty.
-      console.log("Could not read /tmp/agent-raw.json — agent produced no output");
+      console.log("Could not read /tmp/agent-raw.json — file may not exist or is unreadable");
     }
   }
 
