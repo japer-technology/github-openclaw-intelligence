@@ -7,5 +7,6 @@ node_modules/
 .github-openclaw-intelligence/state/credentials/
 .github-openclaw-intelligence/skills/*
 !.github-openclaw-intelligence/skills/.gitkeep
+.github-openclaw-intelligence/SOUL
 .github-openclaw-intelligence/package-lock.json
 .DS_Store

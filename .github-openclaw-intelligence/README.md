@@ -58,6 +58,14 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 
 ---
 
+## Agent Identity
+
+The `AGENTS.md` file defines the agent's personality and standing orders. At runtime, its content is automatically written to a `SOUL` file (gitignored) so that the OpenClaw runtime reads it as the agent's native identity — bridging the GitHub `AGENTS.md` convention with OpenClaw's `SOUL` system.
+
+To customise the agent, edit `AGENTS.md` with your instructions. If `AGENTS.md` contains only the default placeholder text, no `SOUL` is generated and the agent runs with OpenClaw defaults.
+
+---
+
 ## Configuration
 
 Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provider and model:
@@ -69,6 +77,8 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
   "defaultThinkingLevel": "high"
 }
 ```
+
+The `--model`, `--provider`, and `--thinking` flags are passed explicitly to the OpenClaw CLI from this file, ensuring the committed settings are always respected regardless of host-level configuration on the runner image.
 
 ### Supported Providers
 
@@ -86,7 +96,7 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
 
 ## Extensions
 
-OpenClaw's capabilities are configured in `config/extensions.json`:
+OpenClaw's capabilities are configured in `config/extensions.json` and actively forwarded to the runtime configuration at launch:
 
 ```json
 {
@@ -102,6 +112,8 @@ OpenClaw's capabilities are configured in `config/extensions.json`:
   "skills": "config/skills.json"
 }
 ```
+
+All enabled extensions are merged into the runtime config written to `OPENCLAW_CONFIG_PATH`, so the OpenClaw process receives the full set of capabilities.
 
 ---
 
