@@ -627,7 +627,7 @@ try {
       await gh("issue", "comment", String(issueNumber), "--body",
         `⚠️ **Warning:** The agent's session state could not be pushed to the repository. Conversation context may not be preserved for follow-up comments. See the [workflow run logs](https://github.com/${repo}/actions) for details.`);
     } catch (e) {
-      console.error("Failed to post push-failure warning comment:", e);
+      console.error(`Failed to post push-failure warning comment on issue #${issueNumber}:`, e);
     }
     throw new Error(
       "All 10 push attempts failed. Auto-reconciliation could not be completed. " +
