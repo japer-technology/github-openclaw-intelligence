@@ -233,14 +233,17 @@ function loadSkillsConfig(): { skills: { allowBundled?: string[]; load?: { extra
 /**
  * Load the extensions configuration from `config/extensions.json`.
  * Returns the extensions object (e.g. `{ "sub-agents": true, "browser-cdp": true }`)
- * or an empty object if the file is missing or has no extensions key.
+ * or an empty object if the file is missing, unreadable, or has no extensions key.
  */
 function loadExtensionsConfig(): Record<string, boolean> {
-  if (existsSync(extensionsConfigPath)) {
+  if (!existsSync(extensionsConfigPath)) return {};
+  try {
     const parsed = JSON.parse(readFileSync(extensionsConfigPath, "utf-8"));
     return parsed.extensions ?? {};
+  } catch (err) {
+    console.log(`Could not load extensions config: ${err}`);
+    return {};
   }
-  return {};
 }
 
 /**
@@ -251,16 +254,23 @@ function loadExtensionsConfig(): Record<string, boolean> {
  * system.  The SOUL file is written at runtime and gitignored — AGENTS.md
  * remains the single source of truth for the agent's identity.
  *
- * If AGENTS.md is absent or contains only the default placeholder text,
- * no SOUL file is generated and the agent runs with OpenClaw defaults.
+ * If AGENTS.md is absent, unreadable, or contains only the default install
+ * template text, no SOUL file is generated and the agent runs with OpenClaw
+ * defaults.
  */
+const DEFAULT_AGENTS_MD = "# Agent Instructions\n\n_No identity yet. Open an issue with the `hatch` label to bootstrap one._";
+
 function generateSoulFromAgentsMd(): void {
   if (!existsSync(agentsMdPath)) return;
-  const content = readFileSync(agentsMdPath, "utf-8").trim();
-  // Skip the default placeholder — it carries no meaningful instructions.
-  if (!content || content.includes("_No identity yet.")) return;
-  writeFileSync(soulPath, content);
-  console.log("Generated SOUL from AGENTS.md");
+  try {
+    const content = readFileSync(agentsMdPath, "utf-8").trim();
+    // Skip the default install template — it carries no meaningful instructions.
+    if (!content || content === DEFAULT_AGENTS_MD) return;
+    writeFileSync(soulPath, content);
+    console.log("Generated SOUL from AGENTS.md");
+  } catch (err) {
+    console.log(`Could not generate SOUL from AGENTS.md: ${err}`);
+  }
 }
 
 /**
