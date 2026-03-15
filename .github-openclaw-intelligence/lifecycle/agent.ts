@@ -517,8 +517,9 @@ try {
   // sqlite, caches) is kept inside .github-openclaw-intelligence/state/ via OPENCLAW_STATE_DIR.
   // The skills section enables bundled skills listed in config/skills.json and
   // adds the local skills/ directory as an extra search path.
-  // The extensions section forwards config/extensions.json so the OpenClaw runtime
-  // activates the full set of capabilities (sub-agents, semantic-memory, browser-cdp, etc.).
+  // Extensions from config/extensions.json are logged above for visibility but are
+  // NOT forwarded to the runtime config — the OpenClaw schema does not accept an
+  // "extensions" top-level key and will reject the config with a validation error.
   const extraDirs = [
     skillsDir,
     ...(skillsConfig.skills?.load?.extraDirs ?? []),
@@ -537,7 +538,6 @@ try {
         extraDirs,
       },
     },
-    extensions,
   };
   const runtimeConfigPath = "/tmp/openclaw-runtime.json";
   writeFileSync(runtimeConfigPath, JSON.stringify(runtimeConfig, null, 2));
