@@ -83,6 +83,8 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync } from "fs";
 import { resolve } from "path";
+import { parseCommand, isMutationInvocation, SUPPORTED_COMMANDS } from "./command-parser";
+import { resolveTrustLevel, type TrustPolicy } from "./trust-level";
 
 // ─── Paths and event context ───────────────────────────────────────────────────
 // `import.meta.dir` resolves to `.github-openclaw-intelligence/lifecycle/`; stepping up one level
@@ -184,6 +186,15 @@ if (configuredModel.trim() !== configuredModel || /\s/.test(configuredModel)) {
 }
 
 console.log(`Configured provider: ${configuredProvider}, model: ${configuredModel}${configuredThinking ? `, thinking: ${configuredThinking}` : ""}`);
+
+// ─── Trust policy and limits ─────────────────────────────────────────────────
+// Read the trustPolicy and limits sections from settings.json.  These control
+// per-actor capability gating and resource boundaries respectively.
+const trustPolicy: TrustPolicy | undefined = piSettings.trustPolicy;
+const configuredLimits: { maxTokensPerRun?: number; maxToolCallsPerRun?: number; workflowTimeoutMinutes?: number } | undefined = piSettings.limits;
+
+// The GitHub actor who triggered the workflow.
+const actor: string = process.env.GITHUB_ACTOR ?? "";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -312,10 +323,9 @@ function linkBundledSkills(allowBundled: string[]): void {
  * Returns `{ skillName, remainder }` if a skill invocation was detected,
  * or `null` if the prompt does not start with a `/skill-name` pattern.
  *
- * Examples:
- *   "@ /gh-issues owner/repo --label bug"  → { skillName: "gh-issues", remainder: "owner/repo --label bug" }
- *   "@ /weather London"                    → { skillName: "weather", remainder: "London" }
- *   "@ Tell me about X"                    → null
+ * This is a fallback for skill-specific slash commands that are NOT in the
+ * SUPPORTED_COMMANDS registry (e.g. `/weather`, `/gh-issues`).  Known
+ * commands are handled by the command parser.
  */
 function parseSkillInvocation(prompt: string): { skillName: string; remainder: string } | null {
   const match = prompt.match(/^\s*\/([a-zA-Z0-9_-]+)\s*(.*)/s);
@@ -355,15 +365,59 @@ try {
     prompt = `${title.replace(/^@\s*/, "")}\n\n${body}`;
   }
 
-  // ── Parse skill invocation from prompt ──────────────────────────────────────
-  // If the prompt starts with `/skill-name`, extract the skill name and rewrite
-  // the prompt so OpenClaw invokes the named skill.  For example:
-  //   "@ /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
-  //   "@ /weather London"                    → skill "weather", prompt "London"
-  const skillInvocation = parseSkillInvocation(prompt);
-  if (skillInvocation) {
-    console.log(`Skill invocation detected: /${skillInvocation.skillName}`);
-    prompt = `Use the "${skillInvocation.skillName}" skill to: ${skillInvocation.remainder}`;
+  // ── Resolve trust level for the actor ─────────────────────────────────────
+  // Read the actor's repository permission from the reaction-state metadata
+  // written by the Authorize workflow step.  If unavailable, default to "write"
+  // since the Authorize step already verified at least write-level access.
+  const actorPermission: string = reactionState?.actorPermission ?? "write";
+  const actorTrustLevel = resolveTrustLevel(actor, actorPermission, trustPolicy);
+  console.log(`Trust level for ${actor} (${actorPermission}): ${actorTrustLevel}`);
+
+  // ── Parse command from prompt ─────────────────────────────────────────────
+  // Use the command parser to detect slash commands (e.g. `/status`, `/help`,
+  // `/config set provider openai`).  Falls back to skill invocation or plain
+  // agent mode for unrecognised commands.
+  const parsed = parseCommand(prompt);
+
+  if (parsed.command !== "agent") {
+    console.log(`Command detected: /${parsed.command} ${parsed.args.join(" ")}`);
+
+    // Trust-level gating: block mutation commands for non-trusted actors.
+    if (actorTrustLevel !== "trusted" && isMutationInvocation(parsed.command, parsed.args)) {
+      const blockMsg =
+        `⚠️ **Permission denied**: The \`/${parsed.command}\` command requires trusted-level access.\n\n` +
+        `Your trust level is \`${actorTrustLevel}\`. Contact a repository administrator to ` +
+        `add your username to the \`trustPolicy.trustedUsers\` list in \`.pi/settings.json\`.`;
+      await gh("issue", "comment", String(issueNumber), "--body", blockMsg);
+      throw new Error(`Mutation command /${parsed.command} blocked for ${actorTrustLevel} actor ${actor}`);
+    }
+
+    // Handle known informational commands that don't need the full agent.
+    if (parsed.command === "help") {
+      const helpLines = Object.entries(SUPPORTED_COMMANDS)
+        .map(([name, desc]) => `- \`/${name}\` — ${desc.description}`)
+        .join("\n");
+      await gh("issue", "comment", String(issueNumber), "--body",
+        `## Available Commands\n\n${helpLines}\n\n` +
+        `Commands prefixed with \`/\` are processed directly. All other text is sent to the agent as natural language.`);
+      succeeded = true;
+      // Skip the rest of the agent pipeline — help is fully handled here.
+      process.exit(0);
+    }
+
+    // Rewrite the prompt so the agent receives the command context.
+    prompt = `Execute the OpenClaw "${parsed.command}" command with arguments: ${parsed.args.join(" ")}.\n\nOriginal input: ${parsed.rawText}`;
+  } else {
+    // ── Parse skill invocation from prompt ────────────────────────────────────
+    // If the prompt starts with `/skill-name`, extract the skill name and rewrite
+    // the prompt so OpenClaw invokes the named skill.  For example:
+    //   "@ /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
+    //   "@ /weather London"                    → skill "weather", prompt "London"
+    const skillInvocation = parseSkillInvocation(prompt);
+    if (skillInvocation) {
+      console.log(`Skill invocation detected: /${skillInvocation.skillName}`);
+      prompt = `Use the "${skillInvocation.skillName}" skill to: ${skillInvocation.remainder}`;
+    }
   }
 
   // ── Load skills configuration and link bundled skills ──────────────────────

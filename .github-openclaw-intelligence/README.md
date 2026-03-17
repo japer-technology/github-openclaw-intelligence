@@ -29,10 +29,11 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 ```
 .github-openclaw-intelligence/
 ├── .pi/
-│   └── settings.json              # LLM provider, model, thinking level
+│   └── settings.json              # LLM provider, model, thinking level, trust policy, limits
 ├── AGENTS.md                      # Agent identity and standing orders
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
+├── ENABLED.md                     # Sentinel — delete to disable the agent (fail-closed)
 ├── LICENSE.md
 ├── PACKAGES.md
 ├── README.md
@@ -40,13 +41,18 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 ├── VERSION
 ├── config/
 │   ├── extensions.json            # Extension and skill activation
+│   ├── settings.schema.json       # JSON Schema for .pi/settings.json validation
 │   └── skills.json                # Bundled skill allowlist and extra dirs
 ├── docs/
 ├── install/
 │   ├── OPENCLAW-AGENTS.md         # Default AGENTS.md for fresh installs
 │   └── settings.json              # Default .pi/settings.json
 ├── lifecycle/
-│   └── agent.ts                   # Core orchestrator
+│   ├── agent.ts                   # Core orchestrator
+│   ├── command-parser.ts          # Slash command parser (openclaw CLI registry)
+│   ├── enabled.ts                 # Fail-closed sentinel guard
+│   ├── preflight.ts               # Pre-run config and structural validation
+│   └── trust-level.ts             # Trust-level resolution per actor
 ├── package.json
 ├── public-fabric/                 # GitHub Pages content
 ├── skills/                        # Runtime-linked skills (symlinks to bundled)
@@ -55,6 +61,32 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
     ├── sessions/                  # Conversation transcripts (JSONL)
     └── memory.log                 # Append-only long-term memory
 ```
+
+---
+
+## Fail-Closed Sentinel
+
+The `ENABLED.md` file is a **sentinel**. Its presence means OpenClaw Intelligence is active in this repository. Every workflow run begins by checking for this file — if it is absent, the run exits immediately with a non-zero status, preventing the agent from executing.
+
+- **To disable the agent**: `git rm .github-openclaw-intelligence/ENABLED.md && git commit -m "chore: disable" && git push`
+- **To re-enable**: restore the file and push.
+
+This is a fail-closed design — the agent never runs unless a human has deliberately enabled it.
+
+---
+
+## Lifecycle Pipeline
+
+Every agent interaction follows an ordered pipeline of discrete, independently-testable scripts:
+
+| Step | Script | Purpose |
+|------|--------|---------|
+| 1 | `enabled.ts` | **Guard** — is the agent allowed to run? |
+| 2 | `preflight.ts` | **Validation** — is config present? Is the schema valid? |
+| 3 | _(bun install)_ | **Install** — prepare the runtime |
+| 4 | `agent.ts` | **Execute** — run the agent, post the reply, commit state |
+
+Each step is a discrete TypeScript file that can fail independently.
 
 ---
 
@@ -68,15 +100,27 @@ To customise the agent, edit `AGENTS.md` with your instructions. If `AGENTS.md` 
 
 ## Configuration
 
-Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provider and model:
+Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provider, model, trust policy, and resource limits:
 
 ```json
 {
   "defaultProvider": "openai",
   "defaultModel": "gpt-5.4",
-  "defaultThinkingLevel": "high"
+  "defaultThinkingLevel": "high",
+  "trustPolicy": {
+    "trustedUsers": ["your-github-username"],
+    "semiTrustedRoles": ["write"],
+    "untrustedBehavior": "read-only-response"
+  },
+  "limits": {
+    "maxTokensPerRun": 10000000,
+    "maxToolCallsPerRun": 1000,
+    "workflowTimeoutMinutes": 120
+  }
 }
 ```
+
+Settings are validated against `config/settings.schema.json` during the preflight step.
 
 The `--model`, `--provider`, and `--thinking` flags are passed explicitly to the OpenClaw CLI from this file, ensuring the committed settings are always respected regardless of host-level configuration on the runner image.
 
@@ -91,6 +135,49 @@ The `--model`, `--provider`, and `--thinking` flags are passed explicitly to the
 | OpenRouter | `OPENROUTER_API_KEY` | DeepSeek, and hundreds more |
 | Mistral | `MISTRAL_API_KEY` | Mistral Large |
 | Groq | `GROQ_API_KEY` | DeepSeek R1 distills |
+
+### Trust Policy
+
+The `trustPolicy` section controls per-actor capability gating:
+
+| Level | Capabilities |
+|-------|-------------|
+| `trusted` | Full capabilities — all tools, mutation commands |
+| `semi-trusted` | Read-only tools — informational commands only |
+| `untrusted` | Blocked or read-only response (no agent invocation) |
+
+- **`trustedUsers`** — GitHub usernames that receive full agent capabilities.
+- **`semiTrustedRoles`** — Repository permission levels (`admin`, `maintain`, `write`) that receive semi-trusted access.
+- **`untrustedBehavior`** — How to handle actors below semi-trusted: `read-only-response` or `block`.
+
+When no `trustPolicy` is configured, all actors with write-level access are treated as trusted (backwards-compatible).
+
+### Resource Limits
+
+The `limits` section sets resource boundaries:
+
+- **`maxTokensPerRun`** — Maximum total tokens per agent run.
+- **`maxToolCallsPerRun`** — Maximum tool calls per agent run.
+- **`workflowTimeoutMinutes`** — Hard time boundary for the workflow (max 360).
+
+---
+
+## Slash Commands
+
+Issue authors can use slash commands to invoke OpenClaw CLI operations directly:
+
+```
+@ /status
+@ /help
+@ /doctor
+@ /sessions
+@ /models
+@ /skills
+```
+
+The command parser recognises all commands from the OpenClaw CLI registry. Mutation commands (e.g. `/config set`, `/reset`) are gated by trust level — only trusted actors can execute them.
+
+Use `@ /help` to see all available commands.
 
 ---
 
