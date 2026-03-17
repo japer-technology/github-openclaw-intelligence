@@ -57,8 +57,8 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 ├── public-fabric/                 # GitHub Pages content
 ├── skills/                        # Runtime-linked skills (symlinks to bundled)
 └── state/
+    ├── agents/main/sessions/      # Conversation transcripts (JSONL)
     ├── issues/                    # Issue-to-session mappings
-    ├── sessions/                  # Conversation transcripts (JSONL)
     └── memory.log                 # Append-only long-term memory
 ```
 
@@ -183,7 +183,7 @@ Use `@ /help` to see all available commands.
 
 ## Extensions
 
-OpenClaw's capabilities are configured in `config/extensions.json` and actively forwarded to the runtime configuration at launch:
+OpenClaw's capabilities are configured in `config/extensions.json`. Enabled extensions are logged at launch for visibility, but are **not** forwarded to the runtime config — the OpenClaw schema does not accept an `extensions` top-level key. Extensions are informational metadata that documents which capabilities the agent environment supports:
 
 ```json
 {
@@ -200,7 +200,7 @@ OpenClaw's capabilities are configured in `config/extensions.json` and actively 
 }
 ```
 
-All enabled extensions are merged into the runtime config written to `OPENCLAW_CONFIG_PATH`, so the OpenClaw process receives the full set of capabilities.
+All enabled extensions are logged by the agent at startup. The OpenClaw runtime receives its capabilities through its own configuration mechanisms rather than through the runtime config file.
 
 ---
 
