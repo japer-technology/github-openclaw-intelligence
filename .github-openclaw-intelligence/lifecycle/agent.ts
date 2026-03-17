@@ -379,7 +379,7 @@ try {
   // agent mode for unrecognised commands.
   const parsed = parseCommand(prompt);
 
-  if (parsed.command !== "agent") {
+  if (parsed.command !== "agent" && parsed.command in SUPPORTED_COMMANDS) {
     console.log(`Command detected: /${parsed.command} ${parsed.args.join(" ")}`);
 
     // Trust-level gating: block mutation commands for non-trusted actors.
@@ -413,6 +413,8 @@ try {
     // the prompt so OpenClaw invokes the named skill.  For example:
     //   "@ /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
     //   "@ /weather London"                    → skill "weather", prompt "London"
+    // This also handles unknown slash commands that are not in SUPPORTED_COMMANDS
+    // but may be valid skill names (e.g. /weather, /gh-issues, /xurl).
     const skillInvocation = parseSkillInvocation(prompt);
     if (skillInvocation) {
       console.log(`Skill invocation detected: /${skillInvocation.skillName}`);
