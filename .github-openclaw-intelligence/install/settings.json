@@ -1,5 +1,15 @@
 {
   "defaultProvider": "openai",
   "defaultModel": "gpt-5.4",
-  "defaultThinkingLevel": "high"
+  "defaultThinkingLevel": "high",
+  "trustPolicy": {
+    "trustedUsers": [],
+    "semiTrustedRoles": ["write"],
+    "untrustedBehavior": "read-only-response"
+  },
+  "limits": {
+    "maxTokensPerRun": 500000,
+    "maxToolCallsPerRun": 200,
+    "workflowTimeoutMinutes": 30
+  }
 }

@@ -250,11 +250,11 @@ jobs:
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
             if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
-            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"comment","commentId":${{ github.event.comment.id }},"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}"}' > /tmp/reaction-state.json
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"comment","commentId":${{ github.event.comment.id }},"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
           else
             REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
             if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
-            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}"}' > /tmp/reaction-state.json
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
           fi
 
       # 2. REJECTION FEEDBACK
@@ -287,14 +287,30 @@ jobs:
             echo "::notice::.github-openclaw-intelligence folder not found, skipping."
           fi
 
-      # 5. RUNTIME
+      # 5. GUARD — fail-closed sentinel check (runs before bun install)
+      - name: Guard
+        if: steps.check-folder.outputs.exists == 'true'
+        run: |
+          if [ ! -f ".github-openclaw-intelligence/ENABLED.md" ]; then
+            echo "::error::OpenClaw Intelligence disabled — sentinel file .github-openclaw-intelligence/ENABLED.md is missing."
+            echo "::notice::To enable, restore .github-openclaw-intelligence/ENABLED.md and push."
+            exit 1
+          fi
+          echo "OpenClaw Intelligence enabled — ENABLED.md found."
+
+      # 6. RUNTIME
       - name: Setup Bun
         if: steps.check-folder.outputs.exists == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2"
 
-      # 6. CACHE
+      # 7. PREFLIGHT — validate config before installing dependencies
+      - name: Preflight
+        if: steps.check-folder.outputs.exists == 'true'
+        run: bun .github-openclaw-intelligence/lifecycle/preflight.ts
+
+      # 8. CACHE
       - name: Cache dependencies
         if: steps.check-folder.outputs.exists == 'true'
         uses: actions/cache@v5
@@ -302,7 +318,7 @@ jobs:
           path: .github-openclaw-intelligence/node_modules
           key: oci-deps-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
 
-      # 7. INSTALL
+      # 9. INSTALL
       - name: Install dependencies
         if: steps.check-folder.outputs.exists == 'true'
         run: |
@@ -313,7 +329,7 @@ jobs:
             bun install
           fi
 
-      # 8. BUILD (placeholder — Bun runs TypeScript natively)
+      # 10. BUILD (placeholder — Bun runs TypeScript natively)
       - name: Build
         if: steps.check-folder.outputs.exists == 'true'
         run: |
@@ -324,14 +340,14 @@ jobs:
             echo "No build script found -- Bun runs TypeScript natively, no build needed."
           fi
 
-      # 8b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
+      # 10b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
       - name: Setup Node.js
         if: steps.check-folder.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      # 9. RUN THE AGENT
+      # 11. RUN THE AGENT
       - name: Run
         if: steps.check-folder.outputs.exists == 'true'
         env:
