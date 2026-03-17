@@ -754,8 +754,9 @@ try {
   if (trimmedText.length === 0) {
     commentBody = `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
   } else if (trimmedText.length > MAX_COMMENT_LENGTH) {
-    commentBody = trimmedText.slice(0, MAX_COMMENT_LENGTH - 200) +
+    const truncationNotice =
       `\n\n---\n⚠️ **Response truncated** — the full response was ${trimmedText.length.toLocaleString()} characters, which exceeds GitHub's comment limit. See the [workflow run logs](https://github.com/${repo}/actions) for the complete output.`;
+    commentBody = trimmedText.slice(0, MAX_COMMENT_LENGTH - truncationNotice.length) + truncationNotice;
   } else {
     commentBody = trimmedText;
   }
