@@ -113,9 +113,9 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
     "untrustedBehavior": "read-only-response"
   },
   "limits": {
-    "maxTokensPerRun": 10000000,
-    "maxToolCallsPerRun": 1000,
-    "workflowTimeoutMinutes": 120
+    "maxTokensPerRun": 500000,
+    "maxToolCallsPerRun": 200,
+    "workflowTimeoutMinutes": 30
   }
 }
 ```

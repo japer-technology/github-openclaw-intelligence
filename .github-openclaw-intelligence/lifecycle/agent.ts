@@ -400,8 +400,20 @@ try {
       await gh("issue", "comment", String(issueNumber), "--body",
         `## Available Commands\n\n${helpLines}\n\n` +
         `Commands prefixed with \`/\` are processed directly. All other text is sent to the agent as natural language.`);
+      // Mark success and add outcome reaction before exiting early.
+      // We do this here rather than relying on the finally block because
+      // process.exit() would bypass it.
       succeeded = true;
-      // Skip the rest of the agent pipeline — help is fully handled here.
+      if (reactionState) {
+        try {
+          const { reactionTarget, commentId: stateCommentId } = reactionState;
+          if (reactionTarget === "comment" && stateCommentId) {
+            await gh("api", `repos/${repo}/issues/comments/${stateCommentId}/reactions`, "-f", "content=+1");
+          } else {
+            await gh("api", `repos/${repo}/issues/${issueNumber}/reactions`, "-f", "content=+1");
+          }
+        } catch { /* reaction failure is non-fatal */ }
+      }
       process.exit(0);
     }
 
