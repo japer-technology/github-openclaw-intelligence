@@ -15,9 +15,12 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Workflow step order:
  *   1. Authorize   (inline shell)            — auth check + add 🚀 reaction indicator
- *   2. Install     (bun install)            — install npm/bun dependencies
- *   3. Build       (bun run build)          — compile OpenClaw TypeScript
- *   4. Run         (agent.ts)               ← YOU ARE HERE
+ *   2. Checkout    (actions/checkout)         — clone the repository
+ *   3. Guard       (enabled.ts)              — verify ENABLED.md sentinel exists
+ *   4. Preflight   (preflight.ts)            — validate config and structural integrity
+ *   5. Install     (bun install)             — install npm/bun dependencies
+ *   6. Build       (bun run build)           — compile (no-op for Bun/TS)
+ *   7. Run         (agent.ts)                ← YOU ARE HERE
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * AGENT EXECUTION PIPELINE
@@ -747,10 +750,24 @@ try {
   // possible, before the potentially slow git push operation.
   // Guard against empty/null responses — post an error message instead of silence.
   const trimmedText = agentText.trim();
-  const commentBody = trimmedText.length > 0
-    ? trimmedText.slice(0, MAX_COMMENT_LENGTH)
-    : `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
-  await gh("issue", "comment", String(issueNumber), "--body", commentBody);
+  let commentBody: string;
+  if (trimmedText.length === 0) {
+    commentBody = `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
+  } else if (trimmedText.length > MAX_COMMENT_LENGTH) {
+    const truncationNotice =
+      `\n\n---\n⚠️ **Response truncated** — the full response was ${trimmedText.length.toLocaleString()} characters, which exceeds GitHub's comment limit. See the [workflow run logs](https://github.com/${repo}/actions) for the complete output.`;
+    commentBody = trimmedText.slice(0, MAX_COMMENT_LENGTH - truncationNotice.length) + truncationNotice;
+  } else {
+    commentBody = trimmedText;
+  }
+
+  // Wrap the comment posting in try/catch so that a failure to post the reply
+  // does not prevent session state from being committed and pushed.
+  try {
+    await gh("issue", "comment", String(issueNumber), "--body", commentBody);
+  } catch (commentErr) {
+    console.error(`Failed to post reply comment on issue #${issueNumber}:`, commentErr);
+  }
 
   // ── Commit and push state changes ───────────────────────────────────────────
   // Stage all changes (session log, mapping JSON, any files the agent edited),
