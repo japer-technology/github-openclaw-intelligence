@@ -558,9 +558,10 @@ try {
   // ── Run the OpenClaw agent ───────────────────────────────────────────────────
   // Use `openclaw agent --local` for embedded execution without a Gateway.
   // The --json flag provides structured output for response extraction.
-  // The --model and --provider flags are passed explicitly from the committed
-  // `.pi/settings.json` to prevent provider/model drift from any host-level
-  // OpenClaw configuration that may be present on the runner image.
+  // The model and provider are set via the runtime config (agents.defaults.model)
+  // using `provider/model` format, from the committed `.pi/settings.json`, to
+  // prevent provider/model drift from any host-level OpenClaw configuration that
+  // may be present on the runner image.
   // Pipe agent output through `tee` so we get:
   //   • a live stream to stdout (visible in the Actions log in real time), and
   //   • a persisted copy at `/tmp/agent-raw.json` for post-processing below.
@@ -570,10 +571,6 @@ try {
     "agent",
     "--local",
     "--json",
-    "--model",
-    configuredModel,
-    "--provider",
-    configuredProvider,
     "--message",
     prompt,
     "--thinking",
@@ -601,6 +598,7 @@ try {
       defaults: {
         workspace: repoRoot,
         timeoutSeconds: 600,
+        model: `${configuredProvider}/${configuredModel}`,
       },
     },
     skills: {
