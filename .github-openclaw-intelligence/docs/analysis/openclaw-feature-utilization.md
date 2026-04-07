@@ -72,15 +72,21 @@ OpenClaw's native session system (`OPENCLAW_STATE_DIR`, `--session-id`) provides
 
 ### 2.4 Settings (`.pi/settings.json`)
 
-Three settings are configured:
+Six setting groups are configured:
 
 | Setting | Value |
 |---|---|
 | `defaultProvider` | `openai` |
 | `defaultModel` | `gpt-5.4` |
 | `defaultThinkingLevel` | `high` |
+| `compaction.enabled` | `true` (with `reserveTokens: 16384`, `keepRecentTokens: 32000`) |
+| `retry.enabled` | `true` (with `maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`) |
 
 Additional settings for trust policy and resource limits are also configured but are consumed by the orchestrator (`agent.ts`), not by the OpenClaw runtime directly.
+
+The `compaction` settings prevent context window exhaustion during long multi-turn conversations. `keepRecentTokens` is set to `32000` (higher than the pi-coding-agent default of `20000`) because GitHub Actions tool outputs — file diffs, build logs, `gh` CLI results — are typically larger than interactive coding session outputs.
+
+The `retry` settings enable automatic retry with exponential backoff for transient LLM API errors. This is particularly important in CI environments where concurrent workflow runs can cause rate-limit spikes.
 
 ### 2.5 Context Files (`AGENTS.md` → `SOUL`)
 
@@ -134,42 +140,13 @@ The agent uses four environment variables for runtime isolation:
 
 ## 3. Features Not Used
 
-### 3.1 Compaction Settings
+### 3.1 ~~Compaction Settings~~ ✅ Now Configured
 
-The underlying pi-coding-agent supports automatic context compaction to prevent context window exhaustion during long conversations:
+Compaction settings are now configured in `.pi/settings.json` with `compaction.enabled: true`, `reserveTokens: 16384`, and `keepRecentTokens: 32000`. The `keepRecentTokens` value is higher than the pi-coding-agent default (`20000`) to accommodate the larger tool outputs typical in GitHub Actions workflows (file diffs, build logs, `gh` CLI results).
 
-```json
-{
-  "compaction": {
-    "enabled": true,
-    "reserveTokens": 16384,
-    "keepRecentTokens": 20000
-  }
-}
-```
+### 3.2 ~~Retry Settings~~ ✅ Now Configured
 
-**Impact of omission:** Long multi-turn conversations on a single issue can exhaust the model's context window. The default auto-compaction is enabled, but OCI does not tune `reserveTokens` or `keepRecentTokens` for its specific usage pattern (GitHub Actions with large tool outputs).
-
-**Recommendation:** Configure compaction explicitly in `.pi/settings.json`. GitHub Actions tool outputs (file diffs, build logs, `gh` CLI results) are typically larger than interactive coding session outputs, so increasing `keepRecentTokens` preserves more recent context for accurate responses.
-
-### 3.2 Retry Settings
-
-The underlying runtime supports automatic retry with exponential backoff for transient LLM API errors:
-
-```json
-{
-  "retry": {
-    "enabled": true,
-    "maxRetries": 3,
-    "baseDelayMs": 2000,
-    "maxDelayMs": 60000
-  }
-}
-```
-
-**Impact of omission:** Transient rate-limit or server errors from LLM providers cause the openclaw process to exit non-zero, which the agent treats as a hard failure. The user sees a 👎 reaction and must re-trigger manually.
-
-**Recommendation:** Enable retry explicitly. CI environments are particularly susceptible to rate-limit spikes during concurrent workflow runs.
+Retry settings are now configured in `.pi/settings.json` with `retry.enabled: true`, `maxRetries: 3`, `baseDelayMs: 2000`, and `maxDelayMs: 60000`. This provides automatic retry with exponential backoff for transient LLM API errors, reducing hard failures from rate-limit spikes in CI environments.
 
 ### 3.3 Custom Extensions (`.pi/extensions/`)
 
@@ -251,8 +228,8 @@ Extension handlers can use `ctx.signal` to forward cancellation into nested mode
 
 | Feature | Effort | Impact | Priority |
 |---|---|---|---|
-| Compaction settings | Low | High | **P0** — prevents context exhaustion |
-| Retry settings | Low | High | **P0** — resilience in CI environment |
+| ~~Compaction settings~~ | ~~Low~~ | ~~High~~ | ~~**P0**~~ ✅ Done |
+| ~~Retry settings~~ | ~~Low~~ | ~~High~~ | ~~**P0**~~ ✅ Done |
 | Custom extensions (GitHub tools) | Medium | High | **P1** — reduces prompt complexity |
 | Prompt templates | Low | Medium | **P1** — standardises common workflows |
 | System prompt extension | Low | Medium | **P2** — separates identity from behavior |
@@ -276,18 +253,18 @@ GMI (the sibling project) uses the same underlying pi-coding-agent runtime but a
 | Bootstrap protocol | ✅ `BOOTSTRAP.md` | ❌ Not used | Low priority |
 | Custom skills | ✅ `memory`, `skill-creator` | ❌ None (10 bundled only) | OCI should evaluate custom skills |
 | Prompt templates | ✅ `code-review`, `issue-triage` | ❌ None | OCI should add |
-| Compaction settings | Configured | Not configured | P0 gap |
-| Retry settings | Configured | Not configured | P0 gap |
-| Documentation analysis | Rich `docs/analysis/` | Minimal | This document begins addressing this |
+| Compaction settings | Configured | ✅ Configured | Gap closed |
+| Retry settings | Configured | ✅ Configured | Gap closed |
+| Documentation analysis | Rich `docs/analysis/` | ✅ Comprehensive | Aligned with GMI |
 
 ---
 
 ## 6. Recommended Implementation Order
 
-### Phase 1: Configuration (zero-code changes)
+### Phase 1: Configuration (zero-code changes) ✅ Complete
 
-1. Add compaction settings to `.pi/settings.json`
-2. Add retry settings to `.pi/settings.json`
+1. ~~Add compaction settings to `.pi/settings.json`~~ ✅
+2. ~~Add retry settings to `.pi/settings.json`~~ ✅
 
 ### Phase 2: Content (low-effort, high-value)
 
@@ -308,6 +285,8 @@ GMI (the sibling project) uses the same underlying pi-coding-agent runtime but a
 
 ## 7. Summary
 
-OCI currently uses 8 of OpenClaw's feature categories (CLI invocation, runtime configuration, session management, settings, context files/SOUL bridge, bundled skills, extension declarations, and environment isolation). The highest-impact additions are compaction and retry settings (zero-code, configuration-only), followed by prompt templates and a GitHub context extension.
+OCI currently uses 10 of OpenClaw's feature categories (CLI invocation, runtime configuration, session management, settings including compaction and retry, context files/SOUL bridge, bundled skills, extension declarations, and environment isolation). The highest-impact remaining additions are prompt templates and a GitHub context extension.
+
+The P0 configuration gaps (compaction and retry settings) have been closed. Compaction is configured with `keepRecentTokens: 32000` (higher than the default `20000`) to accommodate the larger tool outputs typical in GitHub Actions workflows. Retry is configured with `maxRetries: 3` and exponential backoff to handle transient LLM API errors in CI environments.
 
 The "GitHub as Infrastructure" principle is well served by OpenClaw's project-local configuration model: all settings, skills, and context files live inside the committed repository. The OpenClaw wrapper adds the gateway and multi-channel capabilities on top of pi-coding-agent, but OCI correctly uses only the embedded `--local` mode, keeping the deployment simple and consistent with the zero-infrastructure philosophy.

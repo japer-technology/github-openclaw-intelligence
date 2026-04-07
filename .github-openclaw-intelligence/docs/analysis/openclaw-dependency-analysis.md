@@ -2,15 +2,15 @@
 
 ## 1. Overview
 
-This document analyzes the impact of upstream `@mariozechner/pi-coding-agent` improvements (v0.57.1 → v0.65.1) on GitHub OpenClaw Intelligence. OCI depends on the `openclaw` package (`^2026.3.12`), which wraps pi-coding-agent as its core agent runtime. Improvements to the underlying runtime flow through to OCI automatically when OpenClaw updates its transitive dependency.
+This document analyzes the impact of upstream `@mariozechner/pi-coding-agent` improvements (v0.57.1 → v0.65.2) on GitHub OpenClaw Intelligence. OCI depends on the `openclaw` package (`^2026.3.12`), which wraps pi-coding-agent as its core agent runtime. Improvements to the underlying runtime flow through to OCI automatically when OpenClaw updates its transitive dependency.
 
-This analysis is derived from [github-minimum-intelligence's pi-mono upgrade analysis](https://github.com/japer-technology/github-minimum-intelligence/blob/main/.github-minimum-intelligence/docs/analysis/pi-mono-upgrade-57.1-to-65.1.md), which covers 17 releases (v0.58.0 through v0.65.1) including 5 releases with breaking changes.
+This analysis is derived from [github-minimum-intelligence's pi-mono upgrade analysis](https://github.com/japer-technology/github-minimum-intelligence/blob/main/.github-minimum-intelligence/docs/analysis/pi-mono-upgrade-57.1-to-65.1.md), which covers 17 releases (v0.58.0 through v0.65.1) including 5 releases with breaking changes, extended to include v0.65.2.
 
 | Item | Detail |
 |------|--------|
 | **OCI dependency** | `openclaw` `^2026.3.12` (in `package.json`) |
 | **Underlying runtime** | `@mariozechner/pi-coding-agent` (transitive via openclaw) |
-| **Releases analyzed** | pi-mono v0.58.0 – v0.65.1 (17 releases) |
+| **Releases analyzed** | pi-mono v0.58.0 – v0.65.2 (18 releases) |
 | **Breaking change releases** | v0.59.0, v0.62.0, v0.63.0, v0.64.0, v0.65.0 |
 | **Source** | [github.com/badlogic/pi-mono/releases](https://github.com/badlogic/pi-mono/releases) |
 
@@ -36,7 +36,7 @@ When OpenClaw updates its transitive dependency on pi-coding-agent, OCI receives
 
 ## 3. Bug Fixes Most Relevant to OCI
 
-These fixes from the pi-mono v0.57.1 → v0.65.1 range directly address issues that OCI is susceptible to in its `--json` / GitHub Actions usage:
+These fixes from the pi-mono v0.57.1 → v0.65.2 range directly address issues that OCI is susceptible to in its `--json` / GitHub Actions usage:
 
 | Fix | pi-mono Version | Impact on OCI |
 |-----|----------------|---------------|
@@ -55,6 +55,7 @@ These fixes from the pi-mono v0.57.1 → v0.65.1 range directly address issues t
 | **Bedrock throttling → compaction misidentification** | v0.65.0 | Prevents unnecessary compaction on rate-limit errors |
 | **Added missing `ajv` dependency** | v0.63.0 | Fixes standalone installs without transitive resolution |
 | **Lazy provider loading** — faster startup | v0.59.0 | Reduces GitHub Actions wall time |
+| **TUI render throttling** — throttle scheduling under streaming load | v0.65.2 | TUI-only fix; no impact on OCI's `--json` mode |
 
 ---
 
@@ -205,19 +206,19 @@ When updating the `openclaw` dependency version:
 
 ## 8. Recommended Follow-Up Work
 
-1. **Add compaction settings** — Configure `compaction.enabled`, `reserveTokens`, and `keepRecentTokens` in `.pi/settings.json` (P0)
-2. **Add retry settings** — Configure `retry.enabled`, `maxRetries`, and delay parameters (P0)
+1. ~~**Add compaction settings** — Configure `compaction.enabled`, `reserveTokens`, and `keepRecentTokens` in `.pi/settings.json` (P0)~~ ✅ Done — configured with `reserveTokens: 16384`, `keepRecentTokens: 32000`
+2. ~~**Add retry settings** — Configure `retry.enabled`, `maxRetries`, and delay parameters (P0)~~ ✅ Done — configured with `maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`
 3. **Add GitHub context extension** — Create `.pi/extensions/github-context.ts` with `promptSnippet` (P1)
 4. **Add prompt templates** — Create `.pi/prompts/` with code-review and issue-triage templates (P1)
 5. **Monitor OpenClaw releases** — Track when OpenClaw updates its pi-coding-agent dependency to ensure OCI receives upstream improvements
 6. **Evaluate `defineTool()` migration** — When adding extensions, use the `defineTool()` API for type safety
-7. **Re-audit feature utilization** — Update [openclaw-feature-utilization.md](openclaw-feature-utilization.md) after implementing P0/P1 changes
+7. **Re-audit feature utilization** — Update [openclaw-feature-utilization.md](openclaw-feature-utilization.md) after implementing P1 changes
 
 ---
 
 ## 9. Summary
 
-The upstream pi-coding-agent improvements from v0.57.1 to v0.65.1 bring significant reliability and performance benefits to OCI through the OpenClaw transitive dependency chain. The most impactful improvements are:
+The upstream pi-coding-agent improvements from v0.57.1 to v0.65.2 bring significant reliability and performance benefits to OCI through the OpenClaw transitive dependency chain. The most impactful improvements are:
 
 - **Parallel tool execution** (v0.58.0) — faster agent runs
 - **Concurrent file mutation serialization** (v0.61.0) — prevents data corruption
@@ -226,10 +227,13 @@ The upstream pi-coding-agent improvements from v0.57.1 to v0.65.1 bring signific
 - **JSON output stability** (v0.62.0, v0.65.1) — cleaner output parsing
 - **Lazy provider loading** (v0.59.0) — faster startup
 - **Multi-edit tool** (v0.63.0) — more efficient code modifications
+- **TUI render throttling** (v0.65.2) — streaming performance (TUI-only, no OCI impact)
 
 No **mandatory code changes** are required for OCI because:
 1. OCI has no custom extensions (the `promptSnippet` breaking change doesn't apply)
 2. OCI uses double-dash CLI flags exclusively (the single-dash flag rejection doesn't apply)
 3. OCI uses CLI-only, not SDK (SDK-only breaking changes don't apply)
+
+**P0 configuration improvements implemented**: Compaction settings (`reserveTokens: 16384`, `keepRecentTokens: 32000`) and retry settings (`maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`) are now configured in `.pi/settings.json`, with schema validation in `config/settings.schema.json` and preflight checks in `lifecycle/preflight.ts`.
 
 The update is low-risk with high reward — it addresses several known reliability issues in the non-interactive JSON-mode pipeline that OCI depends on.

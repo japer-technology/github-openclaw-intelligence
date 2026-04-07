@@ -18,11 +18,13 @@ Beyond the CLI binary, OCI uses the following OpenClaw feature categories:
 | Feature | Location | Description |
 |---------|----------|-------------|
 | Session management | `OPENCLAW_STATE_DIR`, `--session-id` | Multi-turn conversation continuity across workflow runs |
-| Project settings | `.pi/settings.json` | Provider, model, thinking level configuration |
+| Project settings | `.pi/settings.json` | Provider, model, thinking level, compaction, and retry configuration |
 | Context files | `AGENTS.md` → `SOUL` | Agent identity and standing orders (bridged at runtime) |
 | Skills | `config/skills.json`, `skills/` | Bundled skill allowlist and runtime-linked skill directories |
 | Runtime config | `OPENCLAW_CONFIG_PATH` | Model, workspace, timeout, and skill configuration |
 | Environment isolation | `OPENCLAW_HOME`, `OPENCLAW_OAUTH_DIR` | Agent home and credential separation |
+| Compaction | `.pi/settings.json` `compaction` | Automatic context compaction for long conversations (`keepRecentTokens: 32000`) |
+| Retry | `.pi/settings.json` `retry` | Automatic retry with exponential backoff for transient LLM errors (`maxRetries: 3`) |
 
 See [docs/analysis/openclaw-feature-utilization.md](docs/analysis/openclaw-feature-utilization.md) for a full audit of used vs. available features.
 
