@@ -11,6 +11,21 @@
 |---------|---------|-------------|
 | [openclaw](https://github.com/openclaw/openclaw) | ^2026.3.12 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
 
+### OpenClaw Feature Surface
+
+Beyond the CLI binary, OCI uses the following OpenClaw feature categories:
+
+| Feature | Location | Description |
+|---------|----------|-------------|
+| Session management | `OPENCLAW_STATE_DIR`, `--session-id` | Multi-turn conversation continuity across workflow runs |
+| Project settings | `.pi/settings.json` | Provider, model, thinking level configuration |
+| Context files | `AGENTS.md` → `SOUL` | Agent identity and standing orders (bridged at runtime) |
+| Skills | `config/skills.json`, `skills/` | Bundled skill allowlist and runtime-linked skill directories |
+| Runtime config | `OPENCLAW_CONFIG_PATH` | Model, workspace, timeout, and skill configuration |
+| Environment isolation | `OPENCLAW_HOME`, `OPENCLAW_OAUTH_DIR` | Agent home and credential separation |
+
+See [docs/analysis/openclaw-feature-utilization.md](docs/analysis/openclaw-feature-utilization.md) for a full audit of used vs. available features.
+
 ## Infrastructure Dependencies
 
 These are not package dependencies but are required for the system to function:

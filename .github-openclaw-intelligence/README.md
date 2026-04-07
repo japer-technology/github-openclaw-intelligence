@@ -44,6 +44,7 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 │   ├── settings.schema.json       # JSON Schema for .pi/settings.json validation
 │   └── skills.json                # Bundled skill allowlist and extra dirs
 ├── docs/
+│   └── analysis/                  # Dependency and feature analysis documents
 ├── install/
 │   ├── OPENCLAW-AGENTS.md         # Default AGENTS.md for fresh installs
 │   └── settings.json              # Default .pi/settings.json
