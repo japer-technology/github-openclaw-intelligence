@@ -141,6 +141,11 @@ jobs:
 
             rm -rf "$TARGET/state"
 
+            # Remove template defaults before restoring user data to prevent
+            # cp -R from nesting directories (e.g. .pi/.pi, config/config).
+            [ -d "$BACKUP/.pi" ]    && rm -rf "$TARGET/.pi"
+            [ -d "$BACKUP/config" ] && rm -rf "$TARGET/config"
+
             [ -f "$BACKUP/AGENTS.md" ] && cp "$BACKUP/AGENTS.md" "$TARGET/AGENTS.md"
             [ -d "$BACKUP/.pi" ]       && cp -R "$BACKUP/.pi" "$TARGET/.pi"
             [ -d "$BACKUP/state" ]     && cp -R "$BACKUP/state" "$TARGET/state"
