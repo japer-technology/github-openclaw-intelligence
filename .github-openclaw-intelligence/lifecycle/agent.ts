@@ -627,11 +627,22 @@ try {
 
   const agent = Bun.spawn(openclawArgs, {
     stdout: "pipe",
-    stderr: "inherit",
+    stderr: "pipe",
     env: agentEnv,
     cwd: repoRoot,
   });
   const tee = Bun.spawn(["tee", "/tmp/agent-raw.json"], { stdin: agent.stdout, stdout: "inherit" });
+
+  // Capture stderr to a file in addition to forwarding it to the Actions log.
+  // OpenClaw's --json flag calls routeLogsToStderr(), which redirects ALL
+  // console.log output (including the JSON result envelope) to stderr via
+  // process.stderr.write.  Without this capture the JSON result would only
+  // appear in the Actions log but never be available for post-processing,
+  // causing the agent to report "no output".
+  const teeStderr = Bun.spawn(
+    ["sh", "-c", "tee /tmp/agent-raw-stderr.txt >&2"],
+    { stdin: agent.stderr, stderr: "inherit" },
+  );
 
   // ── Timeout-aware wait for output capture ──────────────────────────────────
   // `tee` exits when the agent's stdout closes (EOF).  If the agent never
@@ -640,7 +651,7 @@ try {
   let agentTimerId: ReturnType<typeof setTimeout> | undefined;
 
   const teeResult = await Promise.race([
-    tee.exited.then(() => "done" as const),
+    Promise.all([tee.exited, teeStderr.exited]).then(() => "done" as const),
     new Promise<"timeout">((resolve) => {
       agentTimerId = setTimeout(() => resolve("timeout"), AGENT_TIMEOUT_MS);
     }),
@@ -652,7 +663,8 @@ try {
     console.error(`Agent timed out after ${AGENT_TIMEOUT_MS / 1000}s — killing processes`);
     agent.kill();
     tee.kill();
-    await Promise.allSettled([agent.exited, tee.exited]);
+    teeStderr.kill();
+    await Promise.allSettled([agent.exited, tee.exited, teeStderr.exited]);
   }
 
   // ── Grace period: wait for the agent process to exit ───────────────────────
@@ -693,30 +705,77 @@ try {
   // ── Extract final assistant text ─────────────────────────────────────────────
   // The `openclaw agent --json` command outputs a JSON envelope with a `payloads`
   // array containing the response text.  Extract the text from the payloads.
-  // Falls back to reading the raw output as plain text if JSON parsing fails.
+  //
+  // Important: OpenClaw's --json flag enables routeLogsToStderr() which redirects
+  // ALL console.log output — including the JSON result — to stderr.  We therefore
+  // try to extract JSON from stdout first (in case a future openclaw version fixes
+  // this), then fall back to stderr where the JSON actually lands today.
   let agentText = "";
-  try {
-    const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
-    if (rawOutput) {
-      const output = JSON.parse(rawOutput);
+
+  /**
+   * Attempt to extract agent reply text from a raw output string.
+   * Returns the extracted text, or `null` if no valid payloads JSON was found.
+   */
+  function extractAgentTextFromRaw(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+
+    // Try parsing the entire content as JSON first (clean stdout case).
+    try {
+      const output = JSON.parse(trimmed);
       if (output.payloads && Array.isArray(output.payloads)) {
-        agentText = output.payloads
+        return output.payloads
           .map((p: { text?: string }) => p.text || "")
           .filter((t: string) => t.length > 0)
           .join("\n\n");
-      } else if (typeof output.text === "string") {
-        agentText = output.text;
-      } else if (typeof output === "string") {
-        agentText = output;
       }
+      if (typeof output.text === "string") return output.text;
+      if (typeof output === "string") return output;
+    } catch { /* not pure JSON — fall through to bracket-search */ }
+
+    // When the JSON is embedded in mixed output (log lines + JSON on stderr),
+    // find the last top-level `{` that starts a line — the JSON envelope is
+    // always the last block of pretty-printed output from the agent CLI.
+    const lastBrace = trimmed.lastIndexOf("\n{");
+    if (lastBrace !== -1) {
+      const candidate = trimmed.slice(lastBrace + 1);
+      try {
+        const output = JSON.parse(candidate);
+        if (output.payloads && Array.isArray(output.payloads)) {
+          return output.payloads
+            .map((p: { text?: string }) => p.text || "")
+            .filter((t: string) => t.length > 0)
+            .join("\n\n");
+        }
+      } catch { /* not valid JSON from this position */ }
     }
-  } catch {
-    // If JSON parsing fails, try reading the raw output as plain text.
+
+    return null;
+  }
+
+  // 1. Try stdout (captured by tee to /tmp/agent-raw.json).
+  try {
+    const stdoutRaw = readFileSync("/tmp/agent-raw.json", "utf-8");
+    const extracted = extractAgentTextFromRaw(stdoutRaw);
+    if (extracted !== null) agentText = extracted;
+  } catch { /* file missing or unreadable */ }
+
+  // 2. If stdout didn't yield a result, try stderr (captured to /tmp/agent-raw-stderr.txt).
+  //    OpenClaw's --json flag routes the JSON result here via routeLogsToStderr().
+  if (!agentText) {
+    try {
+      const stderrRaw = readFileSync("/tmp/agent-raw-stderr.txt", "utf-8");
+      const extracted = extractAgentTextFromRaw(stderrRaw);
+      if (extracted !== null) agentText = extracted;
+    } catch { /* file missing or unreadable */ }
+  }
+
+  // 3. Last resort: use raw stdout content as plain text.
+  if (!agentText) {
     try {
       const rawOutput = readFileSync("/tmp/agent-raw.json", "utf-8").trim();
-      agentText = rawOutput;
+      if (rawOutput) agentText = rawOutput;
     } catch {
-      // File does not exist or is unreadable — leave agentText empty.
       console.log("Could not read /tmp/agent-raw.json — file may not exist or is unreadable");
     }
   }
