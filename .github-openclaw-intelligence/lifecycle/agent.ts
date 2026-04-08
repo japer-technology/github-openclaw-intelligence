@@ -84,7 +84,7 @@
  * - Bun runtime                   — for Bun.spawn and top-level await
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync, unlinkSync, rmSync } from "fs";
 import { resolve } from "path";
 import { parseCommand, isMutationInvocation, SUPPORTED_COMMANDS } from "./command-parser";
 import { resolveTrustLevel, type TrustPolicy } from "./trust-level";
@@ -287,6 +287,58 @@ function generateSoulFromAgentsMd(): void {
     console.log("Generated SOUL from AGENTS.md");
   } catch (err) {
     console.log(`Could not generate SOUL from AGENTS.md: ${err}`);
+  }
+}
+
+/**
+ * Remove OpenClaw identity/metadata files that may have leaked into the repo
+ * root.  The OpenClaw runtime sometimes creates these files in the working
+ * directory (cwd) even when OPENCLAW_HOME points elsewhere.  They must not be
+ * committed — the canonical copies live inside `.github-openclaw-intelligence/`.
+ *
+ * Called just before `git add` to ensure leaked files are never staged.
+ */
+function cleanLeakedRootFiles(): void {
+  // Every file name that OpenClaw's workspace bootstrap or runtime may
+  // create inside the workspace directory (which is the repo root).
+  // Derived from the DEFAULT_*_FILENAME constants in the openclaw SDK's
+  // workspace module (AGENTS, SOUL, TOOLS, IDENTITY, USER, HEARTBEAT,
+  // BOOTSTRAP, MEMORY / memory alternate).
+  const leakedFileNames = [
+    "AGENTS.md",
+    "BOOTSTRAP.md",
+    "HEARTBEAT.md",
+    "IDENTITY.md",
+    "MEMORY.md",    // DEFAULT_MEMORY_FILENAME
+    "memory.md",    // DEFAULT_MEMORY_ALT_FILENAME (OpenClaw checks both cases)
+    "SOUL",
+    "SOUL.md",
+    "TOOLS.md",
+    "USER.md",
+  ];
+  for (const name of leakedFileNames) {
+    const filePath = resolve(repoRoot, name);
+    if (existsSync(filePath)) {
+      try {
+        unlinkSync(filePath);
+        console.log(`Cleaned leaked file from repo root: ${name}`);
+      } catch (err) {
+        console.error(`Failed to remove leaked file ${name}: ${err}`);
+      }
+    }
+  }
+  // Also remove directories that OpenClaw may create in the workspace root.
+  const leakedDirNames = [".openclaw", "memory"];
+  for (const name of leakedDirNames) {
+    const dirPath = resolve(repoRoot, name);
+    if (existsSync(dirPath)) {
+      try {
+        rmSync(dirPath, { recursive: true, force: true });
+        console.log(`Cleaned leaked directory from repo root: ${name}/`);
+      } catch (err) {
+        console.error(`Failed to remove leaked directory ${name}/: ${err}`);
+      }
+    }
   }
 }
 
@@ -599,6 +651,11 @@ try {
         workspace: repoRoot,
         timeoutSeconds: 600,
         model: `${configuredProvider}/${configuredModel}`,
+        // Prevent OpenClaw from creating bootstrap/identity template files
+        // (AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, HEARTBEAT.md)
+        // inside the workspace directory (repo root).  The agent's identity is
+        // already handled by the AGENTS.md → SOUL bridge in generateSoulFromAgentsMd().
+        skipBootstrap: true,
       },
     },
     skills: {
@@ -827,6 +884,10 @@ try {
   }
 
   // ── Commit and push state changes ───────────────────────────────────────────
+  // Clean up any OpenClaw identity/metadata files that leaked into the repo root
+  // before staging, so they are never committed.
+  cleanLeakedRootFiles();
+
   // Stage all changes (session log, mapping JSON, any files the agent edited),
   // commit only if the index is dirty, then push with a retry-on-conflict loop.
   const addResult = await run(["git", "add", "-A"]);
