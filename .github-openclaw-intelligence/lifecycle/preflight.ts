@@ -178,6 +178,67 @@ if (existsSync(piSettingsPath) && existsSync(schemaPath)) {
         }
       }
     }
+
+    // ── Validate compaction ──────────────────────────────────────────────────
+    if (settings.compaction != null) {
+      const comp = settings.compaction;
+      if (comp === null || typeof comp !== "object" || Array.isArray(comp)) {
+        errors.push('settings.json: "compaction" must be an object');
+      } else {
+        if (comp.enabled != null && typeof comp.enabled !== "boolean") {
+          errors.push('settings.json: "compaction.enabled" must be a boolean');
+        }
+        if (comp.reserveTokens != null) {
+          if (typeof comp.reserveTokens !== "number" || !Number.isInteger(comp.reserveTokens)) {
+            errors.push('settings.json: "compaction.reserveTokens" must be an integer');
+          } else if (comp.reserveTokens < 1024) {
+            errors.push('settings.json: "compaction.reserveTokens" must be at least 1024');
+          }
+        }
+        if (comp.keepRecentTokens != null) {
+          if (typeof comp.keepRecentTokens !== "number" || !Number.isInteger(comp.keepRecentTokens)) {
+            errors.push('settings.json: "compaction.keepRecentTokens" must be an integer');
+          } else if (comp.keepRecentTokens < 1024) {
+            errors.push('settings.json: "compaction.keepRecentTokens" must be at least 1024');
+          }
+        }
+      }
+    }
+
+    // ── Validate retry ───────────────────────────────────────────────────────
+    if (settings.retry != null) {
+      const ret = settings.retry;
+      if (ret === null || typeof ret !== "object" || Array.isArray(ret)) {
+        errors.push('settings.json: "retry" must be an object');
+      } else {
+        if (ret.enabled != null && typeof ret.enabled !== "boolean") {
+          errors.push('settings.json: "retry.enabled" must be a boolean');
+        }
+        if (ret.maxRetries != null) {
+          if (typeof ret.maxRetries !== "number" || !Number.isInteger(ret.maxRetries)) {
+            errors.push('settings.json: "retry.maxRetries" must be an integer');
+          } else if (ret.maxRetries < 1) {
+            errors.push('settings.json: "retry.maxRetries" must be at least 1');
+          } else if (ret.maxRetries > 10) {
+            errors.push('settings.json: "retry.maxRetries" must be at most 10');
+          }
+        }
+        if (ret.baseDelayMs != null) {
+          if (typeof ret.baseDelayMs !== "number" || !Number.isInteger(ret.baseDelayMs)) {
+            errors.push('settings.json: "retry.baseDelayMs" must be an integer');
+          } else if (ret.baseDelayMs < 100) {
+            errors.push('settings.json: "retry.baseDelayMs" must be at least 100');
+          }
+        }
+        if (ret.maxDelayMs != null) {
+          if (typeof ret.maxDelayMs !== "number" || !Number.isInteger(ret.maxDelayMs)) {
+            errors.push('settings.json: "retry.maxDelayMs" must be an integer');
+          } else if (ret.maxDelayMs < 1000) {
+            errors.push('settings.json: "retry.maxDelayMs" must be at least 1000');
+          }
+        }
+      }
+    }
   } catch (e) {
     errors.push(`settings.json: failed to parse — ${(e as Error).message}`);
   }
