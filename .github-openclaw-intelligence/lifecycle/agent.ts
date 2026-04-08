@@ -632,6 +632,11 @@ try {
         workspace: repoRoot,
         timeoutSeconds: 600,
         model: `${configuredProvider}/${configuredModel}`,
+        // Prevent OpenClaw from creating bootstrap/identity template files
+        // (AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, HEARTBEAT.md)
+        // inside the workspace directory (repo root).  The agent's identity is
+        // already handled by the AGENTS.md → SOUL bridge in generateSoulFromAgentsMd().
+        skipBootstrap: true,
       },
     },
     skills: {
