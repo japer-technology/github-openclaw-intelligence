@@ -299,7 +299,22 @@ function generateSoulFromAgentsMd(): void {
  * Called just before `git add` to ensure leaked files are never staged.
  */
 function cleanLeakedRootFiles(): void {
-  const leakedFileNames = ["AGENTS.md", "HEARTBEAT.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md"];
+  // Every file name that OpenClaw's workspace bootstrap or runtime may
+  // create inside the workspace directory (which is the repo root).
+  // This must be kept in sync with the DEFAULT_*_FILENAME constants in
+  // openclaw's workspace module — see node_modules/openclaw/dist/workspace-*.js.
+  const leakedFileNames = [
+    "AGENTS.md",
+    "BOOTSTRAP.md",
+    "HEARTBEAT.md",
+    "IDENTITY.md",
+    "MEMORY.md",
+    "memory.md",
+    "SOUL",
+    "SOUL.md",
+    "TOOLS.md",
+    "USER.md",
+  ];
   for (const name of leakedFileNames) {
     const filePath = resolve(repoRoot, name);
     if (existsSync(filePath)) {
@@ -311,14 +326,17 @@ function cleanLeakedRootFiles(): void {
       }
     }
   }
-  // Also remove the .openclaw/ directory if it leaked to the repo root.
-  const openclawDotDir = resolve(repoRoot, ".openclaw");
-  if (existsSync(openclawDotDir)) {
-    try {
-      rmSync(openclawDotDir, { recursive: true, force: true });
-      console.log("Cleaned leaked .openclaw/ directory from repo root");
-    } catch (err) {
-      console.error(`Failed to remove leaked .openclaw/ directory: ${err}`);
+  // Also remove directories that OpenClaw may create in the workspace root.
+  const leakedDirNames = [".openclaw", "memory"];
+  for (const name of leakedDirNames) {
+    const dirPath = resolve(repoRoot, name);
+    if (existsSync(dirPath)) {
+      try {
+        rmSync(dirPath, { recursive: true, force: true });
+        console.log(`Cleaned leaked directory from repo root: ${name}/`);
+      } catch (err) {
+        console.error(`Failed to remove leaked directory ${name}/: ${err}`);
+      }
     }
   }
 }
