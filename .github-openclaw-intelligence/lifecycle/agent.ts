@@ -298,10 +298,9 @@ function generateSoulFromAgentsMd(): void {
  *
  * Called just before `git add` to ensure leaked files are never staged.
  */
-const LEAKED_FILE_NAMES = ["AGENTS.md", "HEARTBEAT.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md"];
-
 function cleanLeakedRootFiles(): void {
-  for (const name of LEAKED_FILE_NAMES) {
+  const leakedFileNames = ["AGENTS.md", "HEARTBEAT.md", "IDENTITY.md", "SOUL.md", "TOOLS.md", "USER.md"];
+  for (const name of leakedFileNames) {
     const filePath = resolve(repoRoot, name);
     if (existsSync(filePath)) {
       try {
