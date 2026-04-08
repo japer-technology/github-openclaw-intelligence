@@ -301,15 +301,16 @@ function generateSoulFromAgentsMd(): void {
 function cleanLeakedRootFiles(): void {
   // Every file name that OpenClaw's workspace bootstrap or runtime may
   // create inside the workspace directory (which is the repo root).
-  // This must be kept in sync with the DEFAULT_*_FILENAME constants in
-  // openclaw's workspace module — see node_modules/openclaw/dist/workspace-*.js.
+  // Derived from the DEFAULT_*_FILENAME constants in the openclaw SDK's
+  // workspace module (AGENTS, SOUL, TOOLS, IDENTITY, USER, HEARTBEAT,
+  // BOOTSTRAP, MEMORY / memory alternate).
   const leakedFileNames = [
     "AGENTS.md",
     "BOOTSTRAP.md",
     "HEARTBEAT.md",
     "IDENTITY.md",
-    "MEMORY.md",
-    "memory.md",
+    "MEMORY.md",    // DEFAULT_MEMORY_FILENAME
+    "memory.md",    // DEFAULT_MEMORY_ALT_FILENAME (OpenClaw checks both cases)
     "SOUL",
     "SOUL.md",
     "TOOLS.md",
