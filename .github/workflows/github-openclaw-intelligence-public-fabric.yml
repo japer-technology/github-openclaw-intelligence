@@ -1,0 +1,103 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  OpenClaw Intelligence — Public Fabric Workflow                             ║
+# ║                                                                              ║
+# ║  Publishes the agent's public-fabric directory as a GitHub Pages site.       ║
+# ║                                                                              ║
+# ║  Docs: https://github.com/japer-technology/github-openclaw-intelligence      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+name: github-openclaw-intelligence-public-fabric
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRIGGERS
+# ──────────────────────────────────────────────────────────────────────────────
+on:
+  # Code is pushed to main → triggers a GitHub Pages deployment.
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - ".github/workflows/**"
+
+  # Manual trigger.
+  workflow_dispatch:
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PERMISSIONS
+# ──────────────────────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOBS
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB — run-gitpages
+  #
+  # Purpose : Publish the agent's public-fabric directory as a GitHub Pages site.
+  # Trigger : push to main, or workflow_dispatch.
+  # ────────────────────────────────────────────────────────────────────────────
+  run-gitpages:
+    if: github.repository != 'japer-technology/github-openclaw-intelligence'
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: "pages-openclaw"
+      cancel-in-progress: false
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check public-fabric exists
+        id: check-folder
+        run: |
+          if [ -d ".github-openclaw-intelligence/public-fabric" ]; then
+            echo "folder_exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ public-fabric directory found."
+          else
+            echo "folder_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Directory .github-openclaw-intelligence/public-fabric not found. Skipping Pages deployment."
+          fi
+
+      - name: Enable Pages
+        if: steps.check-folder.outputs.folder_exists == 'true'
+        id: enable-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --silent 2>/dev/null; then
+            echo "pages_active=true" >> "$GITHUB_OUTPUT"
+            echo "✅ GitHub Pages is already enabled."
+          elif gh api "repos/${{ github.repository }}/pages" \
+            -X POST -f build_type=workflow --silent 2>/dev/null; then
+            echo "pages_active=true" >> "$GITHUB_OUTPUT"
+            echo "✅ GitHub Pages has been enabled."
+          else
+            echo "pages_active=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not enable GitHub Pages automatically. Please enable it manually in repository Settings → Pages → Source → GitHub Actions."
+          fi
+
+      - name: Setup Pages
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: '.github-openclaw-intelligence/public-fabric'
+
+      - name: Deploy to GitHub Pages
+        if: steps.check-folder.outputs.folder_exists == 'true' && steps.enable-pages.outputs.pages_active == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
