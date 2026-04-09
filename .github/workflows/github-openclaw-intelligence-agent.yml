@@ -2,11 +2,11 @@
 # ║  OpenClaw Intelligence — Agent Workflow (Version 1.0.9)                      ║
 # ║                                                                              ║
 # ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
-# ║  OpenClaw responds to `@`.                                                   ║
+# ║  OpenClaw responds to `@` (configurable via ACTIVATION_PREFIX).              ║
 # ║                                                                              ║
 # ║  WHAT THIS WORKFLOW CONTAINS (two jobs):                                     ║
 # ║    run-install   — Self-installer and upgrader (workflow_dispatch only).     ║
-# ║    run-agent     — AI agent that responds to issues and comments on `@`.     ║
+# ║    run-agent     — AI agent responding to issues/comments (soft activation). ║
 # ║                                                                              ║
 # ║  Docs: https://github.com/japer-technology/github-openclaw-intelligence      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -17,11 +17,11 @@ name: github-openclaw-intelligence-agent
 # TRIGGERS
 # ──────────────────────────────────────────────────────────────────────────────
 on:
-  # 1. A new issue is opened → the agent reads it if the title starts with `@`.
+  # 1. A new issue is opened → the agent reads it (prefix checked in activation gate).
   issues:
     types: [opened]
 
-  # 2. A comment is added → the agent responds if the comment body starts with `@`.
+  # 2. A comment is added → the agent responds (prefix checked in activation gate).
   issue_comment:
     types: [created]
 
@@ -203,8 +203,11 @@ jobs:
   #
   # Purpose : The core AI agent. Reads the issue (or comment), processes it
   #           through the OpenClaw runtime, and posts the response.
-  # Trigger : issues.opened (title starts with `@`) OR
-  #           issue_comment.created (body starts with `@`, ignoring bots).
+  # Trigger : issues.opened OR issue_comment.created (ignoring bots).
+  #           When other `.github-*-intelligence` folders exist in the repo,
+  #           the activation prefix (default `@`) is required at the start of
+  #           the issue title or comment body.  When this is the sole
+  #           intelligence installed, the prefix is optional ("soft activation").
   # Security: Only collaborators with write/maintain/admin access can trigger.
   # ────────────────────────────────────────────────────────────────────────────
   run-agent:
@@ -215,21 +218,74 @@ jobs:
       group: github-openclaw-intelligence-${{ github.repository }}-issue-${{ github.event.issue.number }}
       cancel-in-progress: false
 
+    # ── Activation prefix ────────────────────────────────────────────────────
+    # Change this single value to switch the routing symbol (e.g. "$", "!", "#").
+    # The prefix is only enforced when other github-*-intelligence folders are
+    # present; when this agent is the sole intelligence, every issue/comment
+    # activates it regardless of prefix.
+    env:
+      ACTIVATION_PREFIX: "@"
+
     # Trigger guard:
-    #   • Run on new issues whose title starts with `@`.
-    #   • Run on issue comments whose body starts with `@`, but skip bot comments.
+    #   • Run on new issues.
+    #   • Run on issue comments, but skip bot comments.
+    #   • The activation-gate step (below) enforces the prefix when needed.
     if: >-
       github.repository != 'japer-technology/github-openclaw-intelligence'
       && (
-        (github.event_name == 'issues' && startsWith(github.event.issue.title, '@'))
+        github.event_name == 'issues'
         || (github.event_name == 'issue_comment'
-            && !endsWith(github.event.comment.user.login, '[bot]')
-            && startsWith(github.event.comment.body, '@'))
+            && !endsWith(github.event.comment.user.login, '[bot]'))
       )
     steps:
 
-      # 1. AUTHORIZATION — verify the actor has write-level (or higher) access.
+      # 1. CHECKOUT
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      # 2. ACTIVATION GATE — decide whether this event should activate the agent.
+      #    If other `.github-*-intelligence` folders exist, require the activation
+      #    prefix at the start of the issue title or comment body.  If this agent
+      #    is the sole intelligence, activate unconditionally.
+      - name: Activation gate
+        id: activation-gate
+        run: |
+          PREFIX="${ACTIVATION_PREFIX}"
+
+          # Count other github-*-intelligence directories (excluding our own)
+          OTHER_COUNT=$(find . -maxdepth 1 -type d -name '.github-*-intelligence' ! -name '.github-openclaw-intelligence' 2>/dev/null | wc -l)
+
+          if [ "$OTHER_COUNT" -eq 0 ]; then
+            echo "activated=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Sole intelligence installed — activating without prefix requirement."
+            exit 0
+          fi
+
+          echo "Found $OTHER_COUNT other intelligence folder(s) — prefix '${PREFIX}' is required."
+
+          # Multiple intelligences — require the activation prefix
+          EVENT_NAME="${{ github.event_name }}"
+          if [ "$EVENT_NAME" == "issues" ]; then
+            TEXT=$(jq -r '.issue.title // ""' "$GITHUB_EVENT_PATH")
+          else
+            TEXT=$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")
+          fi
+
+          # Check if text starts with the activation prefix
+          if [[ "$TEXT" == "${PREFIX}"* ]]; then
+            echo "activated=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Activation prefix '${PREFIX}' found — activating."
+          else
+            echo "activated=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Activation prefix '${PREFIX}' not found — skipping."
+          fi
+
+      # 3. AUTHORIZATION — verify the actor has write-level (or higher) access.
       - name: Authorize
+        if: steps.activation-gate.outputs.activated == 'true'
         id: authorize
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -252,7 +308,7 @@ jobs:
             echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
           fi
 
-      # 2. REJECTION FEEDBACK
+      # 4. REJECTION FEEDBACK
       - name: Reject
         if: ${{ failure() && steps.authorize.outcome == 'failure' }}
         env:
@@ -264,15 +320,9 @@ jobs:
             gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=-1
           fi
 
-      # 3. CHECKOUT
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0
-
-      # 4. SAFETY CHECK
+      # 5. SAFETY CHECK
       - name: Check for .github-openclaw-intelligence
+        if: steps.activation-gate.outputs.activated == 'true'
         id: check-folder
         run: |
           if [ -d ".github-openclaw-intelligence" ]; then
@@ -282,7 +332,7 @@ jobs:
             echo "::notice::.github-openclaw-intelligence folder not found, skipping."
           fi
 
-      # 5. GUARD — fail-closed sentinel check (runs before bun install)
+      # 6. GUARD — fail-closed sentinel check (runs before bun install)
       - name: Guard
         if: steps.check-folder.outputs.exists == 'true'
         run: |
@@ -293,19 +343,19 @@ jobs:
           fi
           echo "OpenClaw Intelligence enabled — ENABLED.md found."
 
-      # 6. RUNTIME
+      # 7. RUNTIME
       - name: Setup Bun
         if: steps.check-folder.outputs.exists == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2"
 
-      # 7. PREFLIGHT — validate config before installing dependencies
+      # 8. PREFLIGHT — validate config before installing dependencies
       - name: Preflight
         if: steps.check-folder.outputs.exists == 'true'
         run: bun .github-openclaw-intelligence/lifecycle/preflight.ts
 
-      # 8. CACHE
+      # 9. CACHE
       - name: Cache dependencies
         if: steps.check-folder.outputs.exists == 'true'
         uses: actions/cache@v5
@@ -313,7 +363,7 @@ jobs:
           path: .github-openclaw-intelligence/node_modules
           key: oci-deps-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
 
-      # 9. INSTALL
+      # 10. INSTALL
       - name: Install dependencies
         if: steps.check-folder.outputs.exists == 'true'
         run: |
@@ -324,7 +374,7 @@ jobs:
             bun install
           fi
 
-      # 10. BUILD (placeholder — Bun runs TypeScript natively)
+      # 11. BUILD (placeholder — Bun runs TypeScript natively)
       - name: Build
         if: steps.check-folder.outputs.exists == 'true'
         run: |
@@ -335,14 +385,14 @@ jobs:
             echo "No build script found -- Bun runs TypeScript natively, no build needed."
           fi
 
-      # 10b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
+      # 11b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
       - name: Setup Node.js
         if: steps.check-folder.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      # 11. RUN THE AGENT
+      # 12. RUN THE AGENT
       - name: Run
         if: steps.check-folder.outputs.exists == 'true'
         env:

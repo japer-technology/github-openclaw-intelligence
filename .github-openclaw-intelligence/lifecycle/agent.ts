@@ -26,7 +26,7 @@
  * AGENT EXECUTION PIPELINE
  * ─────────────────────────────────────────────────────────────────────────────
  *   1. Fetch issue title/body from GitHub via the `gh` CLI.
- *   2. Strip the `@` prefix from the prompt (routing signal, not user content).
+ *   2. Strip the activation prefix from the prompt (routing signal, not user content).
  *   3. Resolve (or create) a conversation session for this issue number.
  *      - New issue  → create a fresh session; record the mapping in state/.
  *      - Follow-up  → load the existing session file for conversation context.
@@ -88,6 +88,21 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symli
 import { resolve } from "path";
 import { parseCommand, isMutationInvocation, SUPPORTED_COMMANDS } from "./command-parser";
 import { resolveTrustLevel, type TrustPolicy } from "./trust-level";
+
+// ─── Activation prefix ───────────────────────────────────────────────────────
+// The routing prefix that triggers the agent.  Defaults to `@`.  Override by
+// setting the ACTIVATION_PREFIX env var in the workflow YAML.  The prefix is
+// stripped from the user's prompt before it is sent to the agent.
+const ACTIVATION_PREFIX: string = process.env.ACTIVATION_PREFIX ?? "@";
+
+// Escape special regex characters so the prefix can be used in a RegExp safely.
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Regex that matches the activation prefix (plus optional trailing whitespace)
+// at the start of a string.  Used to strip the routing signal from the prompt.
+const activationPrefixRegex = new RegExp(`^${escapeRegExp(ACTIVATION_PREFIX)}\\s*`);
 
 // ─── Paths and event context ───────────────────────────────────────────────────
 // `import.meta.dir` resolves to `.github-openclaw-intelligence/lifecycle/`; stepping up one level
@@ -412,12 +427,12 @@ try {
     body = await gh("issue", "view", String(issueNumber), "--json", "body", "--jq", ".body");
   }
 
-  // ── Strip the @ prefix (routing signal, not part of the user's question) ────
+  // ── Strip the activation prefix (routing signal, not part of the user's question) ──
   let prompt: string;
   if (eventName === "issue_comment") {
-    prompt = event.comment.body.replace(/^@\s*/, "");
+    prompt = event.comment.body.replace(activationPrefixRegex, "");
   } else {
-    prompt = `${title.replace(/^@\s*/, "")}\n\n${body}`;
+    prompt = `${title.replace(activationPrefixRegex, "")}\n\n${body}`;
   }
 
   // ── Resolve trust level for the actor ─────────────────────────────────────
@@ -478,8 +493,8 @@ try {
     // ── Parse skill invocation from prompt ────────────────────────────────────
     // If the prompt starts with `/skill-name`, extract the skill name and rewrite
     // the prompt so OpenClaw invokes the named skill.  For example:
-    //   "@ /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
-    //   "@ /weather London"                    → skill "weather", prompt "London"
+    //   "<prefix> /gh-issues owner/repo --label bug"  → skill "gh-issues", prompt "owner/repo --label bug"
+    //   "<prefix> /weather London"                    → skill "weather", prompt "London"
     // This also handles unknown slash commands that are not in SUPPORTED_COMMANDS
     // but may be valid skill names (e.g. /weather, /gh-issues, /xurl).
     const skillInvocation = parseSkillInvocation(prompt);
