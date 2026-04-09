@@ -274,8 +274,8 @@ jobs:
             TEXT=$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")
           fi
 
-          # Check if text starts with the activation prefix
-          if [[ "$TEXT" == "${PREFIX}"* ]]; then
+          # Check if text starts with the activation prefix (exact match, no glob)
+          if [[ "${TEXT:0:${#PREFIX}}" == "$PREFIX" ]]; then
             echo "activated=true" >> "$GITHUB_OUTPUT"
             echo "✅ Activation prefix '${PREFIX}' found — activating."
           else
