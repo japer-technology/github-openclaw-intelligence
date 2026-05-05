@@ -1,6 +1,6 @@
 ### [GitHub OpenClaw Intelligence](.github-openclaw-intelligence/README.md)
 
-**Built on [openclaw/openclaw](https://github.com/openclaw/openclaw)** — the Open Claw AI Agent, adapted for GitHub Actions infrastructure.
+**Built on [openclaw/openclaw](https://github.com/openclaw/openclaw)**
 
 #### READ THIS [.github-openclaw-intelligence/README.md](.github-openclaw-intelligence/README.md)
 
