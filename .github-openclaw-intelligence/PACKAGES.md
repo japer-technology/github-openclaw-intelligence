@@ -11,7 +11,7 @@
 |---------|---------|-------------|
 | [@buape/carbon](https://github.com/buape/carbon) | ^0.14.0 | Discord UI component library required by OpenClaw's bundled Discord channel plugin. The plugin is eagerly loaded during CLI bootstrap even when using `--local` mode. |
 | [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) | ^1.60.0 | Lark/Feishu API SDK required by OpenClaw's bundled Feishu channel plugin. The plugin is eagerly loaded during CLI bootstrap via `jiti`, which resolves modules from the project root — so this must be a direct dependency to ensure top-level hoisting. |
-| [openclaw](https://github.com/openclaw/openclaw) | ^2026.3.12 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+| [openclaw](https://github.com/openclaw/openclaw) | ^2026.5.22 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
 
 ### OpenClaw Feature Surface
 
@@ -77,8 +77,8 @@ These are pulled in transitively by `openclaw`:
 
 | Package | Description |
 |---------|-------------|
-| `@mariozechner/pi-coding-agent` | Coding agent CLI used internally by OpenClaw for AI agent capabilities. |
-| `@mariozechner/pi-ai` | AI provider abstraction layer used by OpenClaw. |
+| `@earendil-works/pi-coding-agent` | Coding agent CLI used internally by OpenClaw for AI agent capabilities. (Formerly published as `@mariozechner/pi-coding-agent`; renamed upstream in the 2026.4+ openclaw line.) |
+| `@earendil-works/pi-ai` | AI provider abstraction layer used by OpenClaw. (Formerly `@mariozechner/pi-ai`.) |
 | `@anthropic-ai/sdk` | Official Anthropic API client for Claude models. |
 | `@aws-sdk/client-bedrock` | AWS Bedrock client for accessing models via AWS infrastructure. |
 | `openai` | Official OpenAI API client. |

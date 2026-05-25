@@ -8,7 +8,7 @@ This analysis is derived from [github-minimum-intelligence's pi-mono upgrade ana
 
 | Item | Detail |
 |------|--------|
-| **OCI dependency** | `openclaw` `^2026.3.12` (in `package.json`) |
+| **OCI dependency** | `openclaw` `^2026.5.22` (in `package.json`) |
 | **Underlying runtime** | `@mariozechner/pi-coding-agent` (transitive via openclaw) |
 | **Releases analyzed** | pi-mono v0.58.0 – v0.65.2 (18 releases) |
 | **Breaking change releases** | v0.59.0, v0.62.0, v0.63.0, v0.64.0, v0.65.0 |
@@ -237,3 +237,49 @@ No **mandatory code changes** are required for OCI because:
 **P0 configuration improvements implemented**: Compaction settings (`reserveTokens: 16384`, `keepRecentTokens: 32000`) and retry settings (`maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`) are now configured in `.pi/settings.json`, with schema validation in `config/settings.schema.json` and preflight checks in `lifecycle/preflight.ts`.
 
 The update is low-risk with high reward — it addresses several known reliability issues in the non-interactive JSON-mode pipeline that OCI depends on.
+
+---
+
+## 10. Addendum: Upgrade to `openclaw` 2026.5.22 (2026-05)
+
+OCI now depends on `openclaw ^2026.5.22` (published 2026-05-24), upgraded from `^2026.3.12`. The dependency lockfile was regenerated to pin the new resolution for `bun install --frozen-lockfile`.
+
+### 10.1 Upstream changes in the 2026.3.12 → 2026.5.22 window that benefit OCI
+
+> **Note on transitive renaming**: In this version window, openclaw migrated its internal coding-agent dependency from `@mariozechner/pi-coding-agent` to `@earendil-works/pi-coding-agent` (currently `0.75.4`). Both packages remain API-compatible from OCI's perspective — OCI only consumes the `openclaw` CLI surface, not the pi-coding-agent SDK directly. References to `@mariozechner/pi-coding-agent` versions elsewhere in this document refer to the upstream pi-mono release history, which carried forward into the `@earendil-works` scope after rename.
+
+These are all transitive runtime improvements — no OCI code changes are required to receive them:
+
+| Improvement | Direct relevance to OCI |
+|---|---|
+| OpenAI Responses API: retry reasoning-only turns instead of treating them as empty failed turns | OCI's default `openai/gpt-5.4` runs more reliably under reasoning-heavy prompts |
+| OpenAI Responses & Chat Completions: preserve `reasoning_tokens` usage without double-counting | Accurate token accounting under the `compaction.reserveTokens: 16384` budget |
+| Embedded auto-compaction watchdog bound to the compaction timeout (not the full run timeout) | Stuck compaction can no longer hold the session write-lock for the entire workflow window |
+| Codex/tool-heavy prompt pressure pre-estimated at the LLM boundary before submission | Long multi-turn issue conversations compact before overflowing context windows |
+| Parallel OpenAI-compatible tool-call deltas tracked in separate argument buffers | Interleaved tool calls no longer corrupt streamed arguments |
+| Anthropic streamed tool-use: preserve unsafe-integer tool-call input values | Large numeric IDs (e.g. issue / comment IDs) are no longer rounded |
+| Sub-agent bootstrap defaults to `AGENTS.md` + `TOOLS.md` only | Cleaner delegated-worker context; OCI's existing `AGENTS.md` → `SOUL` bridge still applies |
+| Skills: shared-directory watch deduplicated across agent workspaces | Avoids `EMFILE` exhaustion on skill loading |
+| `openclaw agent --session-key` accepted alongside `--session-id` | Optional; OCI continues to use `--session-id` |
+
+### 10.2 Verified non-impact areas
+
+The narrow integration surface OCI uses with `openclaw` is unchanged in 2026.5.22:
+
+- All five double-dash CLI flags (`--local`, `--json`, `--message`, `--thinking`, `--session-id`) remain valid.
+- All six env vars (`OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_OAUTH_DIR`, `OPENCLAW_HOME`, `OPENCLAW_BUNDLED_SKILLS_DIR`, plus provider API keys) are honored.
+- The `--json` envelope shape consumed by `lifecycle/agent.ts` (`payloads[]` extracted via `tac | jq`) is unchanged.
+- The strict Zod runtime config schema continues to accept `agents.defaults.{workspace,timeoutSeconds,model}` and `skills.{allowBundled,load.extraDirs}`.
+- `engines.node >= 22.19.0` is satisfied by `actions/setup-node@v4` with `node-version: '22'`.
+
+### 10.3 Files touched by this upgrade
+
+| File | Change |
+|---|---|
+| `.github-openclaw-intelligence/package.json` | `openclaw` range bumped to `^2026.5.22` |
+| `.github-openclaw-intelligence/bun.lock` | Regenerated for the new resolution |
+| `.github-openclaw-intelligence/VERSION` | Template version bumped `1.0.9 → 1.0.10` so the self-installer propagates the upgrade downstream |
+| `.github-openclaw-intelligence/PACKAGES.md` | Version row updated |
+| `.github-openclaw-intelligence/public-fabric/status.json` | Public dependencies card updated |
+| `.github/workflows/github-openclaw-intelligence-agent.yml` | Banner version updated |
+
