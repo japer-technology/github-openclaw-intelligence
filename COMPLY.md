@@ -1,0 +1,239 @@
+# COMPLY.md — Compliance Attestation
+
+This document attests how **`japer-technology/github-openclaw-intelligence`** is
+designed, configured, and operated in alignment with:
+
+1. **GitHub Agentic Workflows (gh-aw)** — the principles, tenets, and security
+   model published at <https://github.github.com/gh-aw>.
+2. **GitHub Site Policies** — the binding terms, acceptable-use rules, and
+   service-specific policies published under
+   <https://docs.github.com/en/site-policy/>.
+
+It is intended as a living artifact: every claim below maps to a concrete file,
+configuration value, or workflow control inside this repository so reviewers
+and auditors can verify it directly.
+
+> **Scope.** This repository ships an AI agent (“OpenClaw Intelligence”) that
+> runs inside GitHub Actions and responds to issues/comments prefixed with `@`.
+> All compliance statements apply to that agent, the workflows that drive it,
+> and the supporting code in `.github-openclaw-intelligence/`.
+
+---
+
+## 1. Compliance with GitHub Agentic Workflows (gh-aw)
+
+The gh-aw framework articulates a set of tenets and a defense-in-depth security
+model for AI agents that operate on GitHub repositories. The table below maps
+each tenet to the concrete control in this repository.
+
+### 1.1 Tenets
+
+| gh-aw Tenet | Status | Evidence in this repository |
+|-------------|:------:|-----------------------------|
+| **Intent-driven, Markdown-first instructions** | ✅ | Agent identity and standing orders live in human-readable Markdown — `.github-openclaw-intelligence/AGENTS.md`. Workflow configuration is declarative YAML in `.github/workflows/github-openclaw-intelligence-agent.yml`. |
+| **Continuous AI as a supplement, not replacement, for deterministic pipelines** | ✅ | The agent is invoked only on explicit `@`-prefixed events; deterministic CI/CD and branch protections remain authoritative. The agent never bypasses existing required checks. |
+| **Human-in-the-loop for privileged actions** | ✅ | A fail-closed sentinel (`.github-openclaw-intelligence/ENABLED.md`) must be present for any agent run; deleting it disables the agent. Trust gating is enforced in `lifecycle/trust-level.ts` and described in `README.md › Trust Policy`. |
+| **Agent-neutrality / model portability** | ✅ | `config/settings.schema.json` and `.pi/settings.json` allow swapping providers (OpenAI, Anthropic, Google, xAI, OpenRouter, Mistral, Groq). No provider lock-in. |
+| **Reviewable, auditable outputs** | ✅ | All agent activity is committed to Git: session transcripts (`state/agents/main/sessions/`), issue-to-session mapping (`state/issues/`), and append-only memory (`state/memory.log`). |
+
+### 1.2 Security Model
+
+| gh-aw Security Control | Status | Evidence in this repository |
+|------------------------|:------:|-----------------------------|
+| **Least-privilege tokens** | ✅ | Workflow `permissions:` block declares only `contents: write`, `issues: write`, `actions: write` — no `id-token`, `packages`, `deployments`, or organisation-level scopes. |
+| **Fail-closed execution** | ✅ | `lifecycle/enabled.ts` exits non-zero when `ENABLED.md` is absent. Documented in `README.md › Fail-Closed Sentinel`. |
+| **Sandboxed runtime** | ✅ | The agent executes on ephemeral `ubuntu-latest` GitHub-hosted runners; no persistent self-hosted infrastructure. |
+| **Pinned, reviewed actions** | ✅ | Third-party actions are pinned to major versions (e.g. `actions/checkout@v4`) and limited to first-party GitHub actions where practical. |
+| **Trust-level gating per actor** | ✅ | `trustPolicy` in `.pi/settings.json`, resolved by `lifecycle/trust-level.ts`. Three levels: `trusted`, `semi-trusted`, `untrusted` — mutation commands gated to trusted actors only. |
+| **Resource limits / DoS protection** | ✅ | `limits` block in `.pi/settings.json` enforces `maxTokensPerRun`, `maxToolCallsPerRun`, and `workflowTimeoutMinutes` (≤ 360). |
+| **Schema validation of all configuration** | ✅ | `lifecycle/preflight.ts` validates `.pi/settings.json` against `config/settings.schema.json` before each run. |
+| **Separation of secrets from prompt context** | ✅ | Provider API keys are read from GitHub Actions secrets (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) and never written to the conversation transcript or memory log. |
+| **No autonomous merges** | ✅ | The agent has no `pull_request: write` merge ability; PRs created by the agent still require human review and any configured branch-protection checks. |
+| **Prompt-injection awareness** | ✅ | Untrusted actors are constrained to read-only responses (`untrustedBehavior: "read-only-response"`); slash-command parser (`lifecycle/command-parser.ts`) only executes the allow-listed OpenClaw CLI registry. |
+| **Auditability** | ✅ | All sessions, tool calls, and commits are stored in Git history — providing a permanent, cryptographically chained audit trail. |
+
+### 1.3 Operational checklist
+
+- [x] `ENABLED.md` sentinel present and documented.
+- [x] Workflow permissions scoped to minimum required.
+- [x] Actions pinned to versions.
+- [x] Trust policy configured with explicit `trustedUsers`.
+- [x] Resource limits configured.
+- [x] Settings validated against JSON Schema each run.
+- [x] Session state and memory committed for review.
+- [x] No write tokens exposed inside agent process beyond the documented scopes.
+
+---
+
+## 2. Compliance with GitHub Site Policies
+
+This section maps the binding policies under
+<https://docs.github.com/en/site-policy/> to how this repository operates.
+
+### 2.1 GitHub Terms of Service & Acceptable Use Policies
+
+> Refs: *GitHub Terms of Service*, *GitHub Acceptable Use Policies*.
+
+| Requirement | Status | How this repository complies |
+|-------------|:------:|------------------------------|
+| Do not violate laws or third-party rights | ✅ | Repository content is original or MIT-licensed. No proprietary code is redistributed without permission. |
+| No unsolicited bulk activity / spam | ✅ | The agent only responds to explicit `@`-prefixed issues/comments authored by repository users. It does not crawl, post, or notify outside the host repository. |
+| No automated excessive resource use | ✅ | Hard caps via `workflowTimeoutMinutes`, `maxTokensPerRun`, `maxToolCallsPerRun`. Workflow runs are bounded and ephemeral. |
+| No disruption of GitHub services | ✅ | Agent traffic is limited to documented GitHub REST/GraphQL endpoints via the `GITHUB_TOKEN` and standard `gh` CLI, respecting platform rate limits. |
+| No misrepresentation of identity | ✅ | All commits and comments made by the workflow are attributed to the `github-actions[bot]` identity provided by `GITHUB_TOKEN`. The agent never impersonates a human user. |
+| No hateful, harassing, or harmful content | ✅ | Bound by `.github-openclaw-intelligence/CODE_OF_CONDUCT.md`. Agent system prompts inherit those standards via `AGENTS.md`. |
+
+### 2.2 GitHub Privacy Statement
+
+> Ref: *GitHub Privacy Statement*.
+
+| Requirement | Status | How this repository complies |
+|-------------|:------:|------------------------------|
+| Minimise collection of personal data | ✅ | The agent only reads issue/comment content authored by the actor, plus GitHub-provided actor metadata required for trust gating. No additional PII is collected or transmitted. |
+| Inform users about automated processing | ✅ | Behaviour is documented openly in `README.md` and this `COMPLY.md`. Users opt-in by using the `@` prefix; non-prefixed activity is ignored. |
+| Use approved sub-processors | ✅ | LLM providers are limited to those listed in `README.md › Supported Providers`. Repository owners control which provider is active via `.pi/settings.json`. |
+| Do not transmit secrets to third parties | ✅ | API keys are GitHub Actions secrets, never echoed to logs, transcripts, or model contexts beyond the provider call itself. |
+
+> **Operator responsibility.** Repository owners enabling this agent are
+> responsible for ensuring their chosen LLM provider's data-handling terms are
+> compatible with the personal data their contributors may post in issues.
+
+### 2.3 GitHub Community Guidelines
+
+> Ref: *GitHub Community Guidelines*.
+
+- The repository ships a Contributor Covenant–derived `CODE_OF_CONDUCT.md`.
+- `AGENTS.md` instructs the agent to follow the same standards in responses.
+- Untrusted actors receive read-only responses, preventing the agent from
+  being weaponised for harassment or repository sabotage.
+
+### 2.4 GitHub Acceptable Use — Information Usage Restrictions
+
+> Ref: *Acceptable Use Policies › Information Usage Restrictions*.
+
+- No scraping or bulk export of GitHub data is performed.
+- The agent's web/search tools access only domains explicitly invoked by the
+  prompt and are subject to network egress controls provided by the
+  GitHub-hosted runner.
+
+### 2.5 GitHub Acceptable Use — Researcher Access & Automated Use
+
+> Refs: *Researcher Access to Public Data*, *Acceptable Use › Automated Use*.
+
+- All automated API calls use `GITHUB_TOKEN` issued for the workflow run; no
+  unauthenticated scraping.
+- Rate limits are honoured by the underlying `@octokit/*` and `gh` CLI clients.
+- The agent does not republish private repository content to third parties
+  beyond the configured LLM provider call required to generate a response.
+
+### 2.6 GitHub Actions — Acceptable Use & Trusted Publishing
+
+> Refs: *GitHub Additional Product Terms › Actions*, *Acceptable Use › Actions*.
+
+| Requirement | Status | Evidence |
+|-------------|:------:|----------|
+| No cryptocurrency mining, proxying, or unrelated compute | ✅ | Agent compute is bounded by `workflowTimeoutMinutes` and used solely to respond to repository events. |
+| Workflows do not act as a free general-purpose compute service | ✅ | The agent only runs in response to explicit `@` events in the host repository. |
+| Comply with concurrency / rate limits | ✅ | No `concurrency` overrides remove platform-imposed limits; each event triggers at most one run. |
+
+### 2.7 GitHub Trademark, Logo, and Branding Policies
+
+> Refs: *GitHub Trademark Policy*, *GitHub Logos and Usage*.
+
+- This project is independent and is not endorsed by or affiliated with GitHub,
+  Inc. The name “OpenClaw Intelligence” and the bundled `logo.png` are project
+  marks of Japer Technology and do not incorporate GitHub trademarks or the
+  Invertocat logo.
+- References to “GitHub”, “GitHub Actions”, “GitHub Copilot”, and the gh-aw
+  framework are nominative and used only to describe interoperability.
+
+### 2.8 GitHub DMCA Takedown Policy
+
+> Ref: *DMCA Takedown Policy*.
+
+- All first-party code in this repository is original and licensed under MIT
+  (`.github-openclaw-intelligence/LICENSE.md`).
+- Reports of alleged infringement should be sent via GitHub's standard DMCA
+  process; this project will respond as required.
+
+### 2.9 GitHub Security Vulnerability Disclosure
+
+> Ref: *Coordinated Disclosure of Security Vulnerabilities*.
+
+- Security reports are governed by `.github-openclaw-intelligence/SECURITY.md`.
+- Reporters are asked to contact maintainers privately rather than open public
+  issues; coordinated disclosure is supported via GitHub Security Advisories.
+
+### 2.10 GitHub Open Source / Inbound = Outbound
+
+- Contributions to this repository are licensed under the same MIT license that
+  covers the project (inbound = outbound), consistent with GitHub's default
+  Terms of Service for public repositories.
+
+---
+
+## 3. Operator Responsibilities
+
+The controls above describe what *this repository* provides. Operators
+enabling the agent in their own repository remain responsible for:
+
+1. **Provider selection.** Choosing an LLM provider whose data-handling terms
+   are appropriate for the data their contributors may submit.
+2. **Secret hygiene.** Provisioning the relevant `*_API_KEY` secrets at the
+   repository or organisation level with the minimum required scope.
+3. **Trust policy.** Populating `trustPolicy.trustedUsers` in
+   `.pi/settings.json` with the correct GitHub usernames.
+4. **Sentinel control.** Removing `.github-openclaw-intelligence/ENABLED.md` to
+   disable the agent at any time (fail-closed).
+5. **Branch protection.** Configuring branch protection rules so that any PRs
+   the agent opens still require human approval before merge.
+6. **Compliance review.** Re-running through this `COMPLY.md` checklist on any
+   substantive change to the workflow, lifecycle scripts, or settings schema.
+
+---
+
+## 4. Verification
+
+Reviewers can verify each claim above with the following spot checks:
+
+| Claim | Verification command |
+|-------|----------------------|
+| Workflow permissions are minimal | `grep -A4 '^permissions:' .github/workflows/github-openclaw-intelligence-agent.yml` |
+| Fail-closed sentinel exists | `test -f .github-openclaw-intelligence/ENABLED.md && echo OK` |
+| Settings validated against schema | `cat .github-openclaw-intelligence/lifecycle/preflight.ts` |
+| Trust gating enforced | `cat .github-openclaw-intelligence/lifecycle/trust-level.ts` |
+| Resource limits configured | `jq '.limits' .github-openclaw-intelligence/.pi/settings.json` |
+| MIT license in place | `head -n 2 .github-openclaw-intelligence/LICENSE.md` |
+| Code of Conduct in place | `head -n 5 .github-openclaw-intelligence/CODE_OF_CONDUCT.md` |
+| Security policy in place | `cat .github-openclaw-intelligence/SECURITY.md` |
+
+---
+
+## 5. Change Control
+
+- This file is reviewed whenever any of the following change:
+  - `.github/workflows/github-openclaw-intelligence-agent.yml`
+  - `.github-openclaw-intelligence/lifecycle/**`
+  - `.github-openclaw-intelligence/config/**`
+  - `.github-openclaw-intelligence/.pi/settings.json`
+  - `.github-openclaw-intelligence/SECURITY.md`
+- Updates to gh-aw tenets or GitHub Site Policies should trigger a review
+  within a reasonable period after publication.
+
+---
+
+## 6. References
+
+- GitHub Agentic Workflows: <https://github.github.com/gh-aw>
+- GitHub Site Policies index: <https://docs.github.com/en/site-policy>
+- GitHub Terms of Service: <https://docs.github.com/en/site-policy/github-terms/github-terms-of-service>
+- GitHub Acceptable Use Policies: <https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies>
+- GitHub Privacy Statement: <https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement>
+- GitHub Community Guidelines: <https://docs.github.com/en/site-policy/github-terms/github-community-guidelines>
+- GitHub Trademark Policy: <https://docs.github.com/en/site-policy/content-removal-policies/github-trademark-policy>
+- GitHub DMCA Takedown Policy: <https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy>
+
+---
+
+*Last reviewed: 2026-05-25.*
+*Maintainer of this attestation: repository owner (`japer-technology`).*
