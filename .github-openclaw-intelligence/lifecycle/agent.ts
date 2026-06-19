@@ -161,6 +161,11 @@ const AGENT_EXIT_GRACE_MS = 10_000;
 // transcripts) whose last update is older than this are pruned by the
 // scheduled maintenance run to bound repository growth.
 const SESSION_RETENTION_DAYS = 90;
+const MS_PER_DAY = 86_400_000;
+
+// Fraction of the comment budget shown as visible text when a reply overflows
+// GitHub's comment limit; the remainder goes into the collapsed <details> tail.
+const VISIBLE_HEAD_RATIO = 0.7;
 
 // Parse the full GitHub Actions event payload (contains issue/comment details).
 const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH!, "utf-8"));
@@ -277,6 +282,8 @@ async function gh(...args: string[]): Promise<string> {
  * succeeded, `false` if all attempts failed.
  */
 async function pushWithRetry(): Promise<boolean> {
+  // Backoff (ms) between push attempts; the repeated 12000 near the end is
+  // intentional, giving two longer pauses before the final attempt.
   const pushBackoffs = [1000, 2000, 3000, 5000, 7000, 8000, 10000, 12000, 12000, 15000];
   for (let i = 1; i <= 10; i++) {
     const push = await run(["git", "push", "origin", `HEAD:${defaultBranch}`]);
@@ -393,7 +400,7 @@ function buildCommentBody(text: string): string {
   // between the visible head and the collapsed overflow tail.
   const overhead = detailsOpen.length + detailsClose.length + footer.length;
   const contentBudget = Math.max(0, MAX_COMMENT_LENGTH - overhead);
-  const headLen = Math.floor(contentBudget * 0.7);
+  const headLen = Math.floor(contentBudget * VISIBLE_HEAD_RATIO);
   const head = text.slice(0, headLen);
   const overflow = text.slice(headLen, headLen + (contentBudget - head.length));
 
@@ -420,7 +427,7 @@ async function runMaintenance(): Promise<void> {
   let prunedMappings = 0;
   let prunedTranscripts = 0;
   if (existsSync(issuesDir)) {
-    const cutoff = Date.now() - SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - SESSION_RETENTION_DAYS * MS_PER_DAY;
     for (const entry of readdirSync(issuesDir)) {
       if (!entry.endsWith(".json")) continue;
       const mappingPath = resolve(issuesDir, entry);
