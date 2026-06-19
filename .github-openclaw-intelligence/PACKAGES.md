@@ -22,6 +22,7 @@ Beyond the CLI binary, OCI uses the following OpenClaw feature categories:
 | Session management | `OPENCLAW_STATE_DIR`, `--session-id` | Multi-turn conversation continuity across workflow runs |
 | Project settings | `.pi/settings.json` | Provider, model, thinking level, compaction, and retry configuration |
 | Context files | `AGENTS.md` → `SOUL` | Agent identity and standing orders (bridged at runtime) |
+| Long-term memory | `MEMORY.md` (bridged into workspace) | Committed memory seed loaded as durable context each run |
 | Skills | `config/skills.json`, `skills/` | Bundled skill allowlist and runtime-linked skill directories |
 | Runtime config | `OPENCLAW_CONFIG_PATH` | Model, workspace, timeout, and skill configuration |
 | Environment isolation | `OPENCLAW_HOME`, `OPENCLAW_OAUTH_DIR` | Agent home and credential separation |
@@ -36,8 +37,8 @@ These are not package dependencies but are required for the system to function:
 
 | Dependency | Description |
 |------------|-------------|
-| [GitHub Actions](https://github.com/features/actions) | The sole compute runtime. Every issue event triggers a workflow that runs the AI agent. No external servers or containers are needed. |
-| [GitHub Issues](https://docs.github.com/en/issues) | Used as the conversation interface. Each issue maps to a persistent AI conversation thread. |
+| [GitHub Actions](https://github.com/features/actions) | The sole compute runtime. Issue, pull-request, comment, and scheduled events trigger a workflow that runs the AI agent. No external servers or containers are needed. |
+| [GitHub Issues](https://docs.github.com/en/issues) | Used as the conversation interface. Each issue or pull request maps to a persistent AI conversation thread. |
 | [Git](https://git-scm.com/) | All session state, conversation history, and agent edits are committed to the repository. Git serves as the memory and storage layer. |
 | [Bun](https://bun.sh) | JavaScript/TypeScript runtime used to execute the agent orchestrator and install dependencies. |
 | [Node.js](https://nodejs.org/) | Required by the OpenClaw CLI binary (>= 22). Installed alongside Bun in the workflow. |

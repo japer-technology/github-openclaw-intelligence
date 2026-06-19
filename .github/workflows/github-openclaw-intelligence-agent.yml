@@ -1,12 +1,13 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  OpenClaw Intelligence — Agent Workflow (Version 1.0.10)                     ║
+# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.0)                      ║
 # ║                                                                              ║
 # ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
 # ║  OpenClaw responds to `@`.                                                   ║
 # ║                                                                              ║
 # ║  WHAT THIS WORKFLOW CONTAINS (two jobs):                                     ║
 # ║    run-install   — Self-installer and upgrader (workflow_dispatch only).     ║
-# ║    run-agent     — AI agent that responds to issues and comments on `@`.     ║
+# ║    run-agent     — AI agent that responds to issues, pull requests, and      ║
+# ║                    comments on `@`, plus scheduled maintenance.              ║
 # ║                                                                              ║
 # ║  Docs: https://github.com/japer-technology/github-openclaw-intelligence      ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -22,10 +23,28 @@ on:
     types: [opened]
 
   # 2. A comment is added → the agent responds if the comment body starts with `@`.
+  #    (PRs are issues, so PR conversation comments arrive as issue_comment too.)
   issue_comment:
     types: [created]
 
-  # 3. Manual "Run workflow" button → installs or upgrades the agent folder.
+  # 3. A pull request is opened → the agent reads it if the title starts with `@`.
+  pull_request:
+    types: [opened]
+
+  # 4. A pull-request review is submitted → respond if the review body starts with `@`.
+  pull_request_review:
+    types: [submitted]
+
+  # 5. A pull-request review comment is added → respond if the body starts with `@`.
+  pull_request_review_comment:
+    types: [created]
+
+  # 6. Scheduled maintenance → the agent runs housekeeping with no originating issue.
+  #    GitHub Actions cron timing is approximate (runs may be delayed 5–60 min).
+  schedule:
+    - cron: "17 6 * * 1"   # Weekly, Mondays ~06:17 UTC
+
+  # 7. Manual "Run workflow" button → installs or upgrades the agent folder.
   workflow_dispatch:
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -34,6 +53,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
   actions: write
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -132,6 +152,7 @@ jobs:
             BACKUP="/tmp/oci-backup"
             mkdir -p "$BACKUP"
             [ -f "$TARGET/AGENTS.md" ] && cp "$TARGET/AGENTS.md" "$BACKUP/AGENTS.md"
+            [ -f "$TARGET/MEMORY.md" ] && cp "$TARGET/MEMORY.md" "$BACKUP/MEMORY.md"
             [ -d "$TARGET/.pi" ]       && cp -R "$TARGET/.pi" "$BACKUP/.pi"
             [ -d "$TARGET/state" ]     && cp -R "$TARGET/state" "$BACKUP/state"
             [ -d "$TARGET/config" ]    && cp -R "$TARGET/config" "$BACKUP/config"
@@ -147,6 +168,7 @@ jobs:
             [ -d "$BACKUP/config" ] && rm -rf "$TARGET/config"
 
             [ -f "$BACKUP/AGENTS.md" ] && cp "$BACKUP/AGENTS.md" "$TARGET/AGENTS.md"
+            [ -f "$BACKUP/MEMORY.md" ] && cp "$BACKUP/MEMORY.md" "$TARGET/MEMORY.md"
             [ -d "$BACKUP/.pi" ]       && cp -R "$BACKUP/.pi" "$TARGET/.pi"
             [ -d "$BACKUP/state" ]     && cp -R "$BACKUP/state" "$TARGET/state"
             [ -d "$BACKUP/config" ]    && cp -R "$BACKUP/config" "$TARGET/config"
@@ -201,23 +223,30 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # JOB 2 — run-agent
   #
-  # Purpose : The core AI agent. Reads the issue (or comment), processes it
-  #           through the OpenClaw runtime, and posts the response.
-  # Trigger : issues.opened (title starts with `@`) OR
-  #           issue_comment.created (body starts with `@`, ignoring bots).
-  # Security: Only collaborators with write/maintain/admin access can trigger.
+  # Purpose : The core AI agent. Reads the issue, pull request, or comment,
+  #           processes it through the OpenClaw runtime, and posts the response.
+  #           Also performs scheduled maintenance on the `schedule` trigger.
+  # Trigger : issues.opened / pull_request.opened (title starts with `@`),
+  #           issue_comment / pull_request_review / pull_request_review_comment
+  #           (body starts with `@`, ignoring bots), or schedule (maintenance).
+  # Security: Only collaborators with write/maintain/admin access can trigger
+  #           interactive runs; scheduled runs skip the authorization step.
   # ────────────────────────────────────────────────────────────────────────────
   run-agent:
     runs-on: ubuntu-latest
 
-    # Concurrency: one agent run per issue at a time.
+    # Concurrency: one agent run per issue or pull request at a time.  Scheduled
+    # maintenance runs have no issue/PR, so they fall back to a unique run id.
     concurrency:
-      group: github-openclaw-intelligence-${{ github.repository }}-issue-${{ github.event.issue.number }}
+      group: github-openclaw-intelligence-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
       cancel-in-progress: false
 
     # Trigger guard:
     #   • Run on new issues whose title starts with `@`.
     #   • Run on issue comments whose body starts with `@`, but skip bot comments.
+    #   • Run on new pull requests whose title starts with `@`.
+    #   • Run on PR reviews / PR review comments starting with `@`, skip bots.
+    #   • Run on scheduled maintenance (no `@` prefix; no originating issue/PR).
     if: >-
       github.repository != 'japer-technology/github-openclaw-intelligence'
       && (
@@ -225,12 +254,23 @@ jobs:
         || (github.event_name == 'issue_comment'
             && !endsWith(github.event.comment.user.login, '[bot]')
             && startsWith(github.event.comment.body, '@'))
+        || (github.event_name == 'pull_request'
+            && startsWith(github.event.pull_request.title, '@'))
+        || (github.event_name == 'pull_request_review'
+            && !endsWith(github.event.review.user.login, '[bot]')
+            && startsWith(github.event.review.body, '@'))
+        || (github.event_name == 'pull_request_review_comment'
+            && !endsWith(github.event.comment.user.login, '[bot]')
+            && startsWith(github.event.comment.body, '@'))
+        || github.event_name == 'schedule'
       )
     steps:
 
       # 1. AUTHORIZATION — verify the actor has write-level (or higher) access.
+      #    Skipped for scheduled maintenance, which has no triggering actor.
       - name: Authorize
         id: authorize
+        if: github.event_name != 'schedule'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -242,14 +282,20 @@ jobs:
             exit 1
           fi
 
+          # Resolve the issue or pull-request number (PRs are issues).
+          ISSUE_NUM="${{ github.event.issue.number }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          NUM="${ISSUE_NUM:-$PR_NUM}"
+
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
-            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
+            CID="${{ github.event.comment.id }}"
+            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/comments/$CID/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
             if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
-            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"comment","commentId":${{ github.event.comment.id }},"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"comment","commentId":'"$CID"',"issueNumber":'"$NUM"',"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
           else
-            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
+            REACTION_ID=$(gh api "repos/${{ github.repository }}/issues/$NUM/reactions" -f content=rocket --jq '.id' 2>/dev/null || echo "")
             if [[ -n "$REACTION_ID" ]]; then RID_JSON="\"$REACTION_ID\""; else RID_JSON="null"; fi
-            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":${{ github.event.issue.number }},"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
+            echo '{"reactionId":'"$RID_JSON"',"reactionTarget":"issue","commentId":null,"issueNumber":'"$NUM"',"repo":"${{ github.repository }}","actorPermission":"'"$PERM"'"}' > /tmp/reaction-state.json
           fi
 
       # 2. REJECTION FEEDBACK
@@ -258,10 +304,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ISSUE_NUM="${{ github.event.issue.number }}"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          NUM="${ISSUE_NUM:-$PR_NUM}"
           if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
             gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=-1
           else
-            gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/reactions" -f content=-1
+            gh api "repos/${{ github.repository }}/issues/$NUM/reactions" -f content=-1
           fi
 
       # 3. CHECKOUT
