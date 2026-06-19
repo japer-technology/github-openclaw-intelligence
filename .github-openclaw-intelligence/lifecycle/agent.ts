@@ -84,7 +84,7 @@
  * - Bun runtime                   — for Bun.spawn and top-level await
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync, unlinkSync, rmSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symlinkSync, unlinkSync, rmSync, readdirSync } from "fs";
 import { resolve } from "path";
 import { parseCommand, isMutationInvocation, SUPPORTED_COMMANDS } from "./command-parser";
 import { resolveTrustLevel, type TrustPolicy } from "./trust-level";
@@ -130,6 +130,14 @@ const extensionsConfigPath = resolve(openclawDir, "config", "extensions.json");
 const agentsMdPath = resolve(openclawDir, "AGENTS.md");
 const soulPath = resolve(openclawDir, "SOUL");
 
+// MEMORY.md is the committed long-term memory seed.  The canonical copy lives
+// inside `.github-openclaw-intelligence/` and is bridged into the agent
+// workspace (repo root) at runtime so the OpenClaw runtime loads it as durable
+// context.  The runtime copy in the repo root is gitignored and removed by
+// cleanLeakedRootFiles() before commit, so only the canonical copy is tracked.
+const canonicalMemoryPath = resolve(openclawDir, "MEMORY.md");
+const workspaceMemoryPath = resolve(repoRoot, "MEMORY.md");
+
 // Bundled skills shipped inside the openclaw npm package.
 const bundledSkillsDir = resolve(openclawDir, "node_modules", "openclaw", "skills");
 
@@ -149,10 +157,22 @@ const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
 // writing its response.
 const AGENT_EXIT_GRACE_MS = 10_000;
 
+// Scheduled maintenance retention window.  Issue→session mappings (and their
+// transcripts) whose last update is older than this are pruned by the
+// scheduled maintenance run to bound repository growth.
+const SESSION_RETENTION_DAYS = 90;
+const MS_PER_DAY = 86_400_000;
+
+// Fraction of the comment budget shown as visible text when a reply overflows
+// GitHub's comment limit; the remainder goes into the collapsed <details> tail.
+const VISIBLE_HEAD_RATIO = 0.7;
+
 // Parse the full GitHub Actions event payload (contains issue/comment details).
 const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH!, "utf-8"));
 
-// "issues" for new issues, "issue_comment" for replies on existing issues.
+// "issues" for new issues, "issue_comment" for replies on existing issues,
+// "pull_request" / "pull_request_review" / "pull_request_review_comment" for
+// pull-request activity, and "schedule" for cron-driven maintenance runs.
 const eventName = process.env.GITHUB_EVENT_NAME!;
 
 // "owner/repo" format — used when calling the GitHub REST API via `gh api`.
@@ -161,8 +181,30 @@ const repo = process.env.GITHUB_REPOSITORY!;
 // Fall back to "main" if the repository's default branch is not set in the event.
 const defaultBranch = event.repository?.default_branch ?? "main";
 
-// The issue number is present on both the `issues` and `issue_comment` payloads.
-const issueNumber: number = event.issue.number;
+// ─── Event classification ──────────────────────────────────────────────────
+// Scheduled runs have no originating issue or PR — they perform maintenance.
+const isScheduled = eventName === "schedule";
+
+// Pull-request events (opened, review submitted, or review comment) carry the
+// conversation target under `event.pull_request` instead of `event.issue`.
+const isPullRequestEvent =
+  eventName === "pull_request" ||
+  eventName === "pull_request_review" ||
+  eventName === "pull_request_review_comment";
+
+// The target number identifies the issue or PR this run is associated with.
+// On GitHub, pull requests are issues, so `gh issue comment <n>` and the issue
+// reactions API both work for PR numbers.  Scheduled maintenance runs have no
+// target, represented as NaN; the maintenance code path never uses it.
+const issueNumber: number = isScheduled
+  ? Number.NaN
+  : (event.issue?.number ?? event.pull_request?.number);
+
+if (!isScheduled && !Number.isInteger(issueNumber)) {
+  throw new Error(
+    `Could not resolve an issue or pull-request number from the "${eventName}" event payload.`
+  );
+}
 
 // Read the committed `.pi` defaults and pass them explicitly to the runtime.
 // This prevents provider/model drift from host-level config (for example a
@@ -234,6 +276,28 @@ async function gh(...args: string[]): Promise<string> {
 }
 
 /**
+ * Push the current branch to the default branch, retrying up to 10 times with
+ * increasing backoff delays.  On each conflict it rebases with `-X theirs` to
+ * auto-resolve in favour of the remote.  Returns `true` if the push eventually
+ * succeeded, `false` if all attempts failed.
+ */
+async function pushWithRetry(): Promise<boolean> {
+  // Backoff (ms) between push attempts; the repeated 12000 near the end is
+  // intentional, giving two longer pauses before the final attempt.
+  const pushBackoffs = [1000, 2000, 3000, 5000, 7000, 8000, 10000, 12000, 12000, 15000];
+  for (let i = 1; i <= 10; i++) {
+    const push = await run(["git", "push", "origin", `HEAD:${defaultBranch}`]);
+    if (push.exitCode === 0) return true;
+    if (i < 10) {
+      console.log(`Push failed, rebasing and retrying (${i}/10)...`);
+      await run(["git", "pull", "--rebase", "-X", "theirs", "origin", defaultBranch]);
+      await new Promise(r => setTimeout(r, pushBackoffs[i - 1]));
+    }
+  }
+  return false;
+}
+
+/**
  * Load the skills configuration from `config/skills.json`.
  * Returns the parsed JSON object, or an empty default if the file is missing.
  */
@@ -288,6 +352,131 @@ function generateSoulFromAgentsMd(): void {
   } catch (err) {
     console.log(`Could not generate SOUL from AGENTS.md: ${err}`);
   }
+}
+
+/**
+ * Bridge the committed canonical MEMORY.md into the agent workspace (repo root)
+ * so the OpenClaw runtime loads it as durable long-term context.
+ *
+ * The canonical copy lives inside `.github-openclaw-intelligence/MEMORY.md` and
+ * is the single source of truth that is tracked in Git.  The workspace copy is
+ * gitignored and removed by cleanLeakedRootFiles() before commit, so the agent
+ * reads the seed memory without the runtime copy being committed twice.
+ *
+ * If the canonical file is absent or unreadable, no workspace copy is written
+ * and the agent runs without a seed memory.
+ */
+function bridgeMemoryFromCanonical(): void {
+  if (!existsSync(canonicalMemoryPath)) return;
+  try {
+    copyFileSync(canonicalMemoryPath, workspaceMemoryPath);
+    console.log("Bridged MEMORY.md into workspace");
+  } catch (err) {
+    console.log(`Could not bridge MEMORY.md into workspace: ${err}`);
+  }
+}
+
+/**
+ * Build the issue/PR comment body for an agent reply.
+ *
+ * If the reply fits within GitHub's comment size limit it is returned verbatim.
+ * If it exceeds the limit, instead of a flat hard truncation the overflow that
+ * still fits is tucked into a collapsible `<details>` block (keeping the comment
+ * clean and signposting that it was truncated), with a footer linking to the
+ * workflow run logs for any content beyond a single comment's capacity.
+ */
+function buildCommentBody(text: string): string {
+  if (text.length <= MAX_COMMENT_LENGTH) return text;
+
+  const logsUrl = `https://github.com/${repo}/actions`;
+  const detailsOpen =
+    `\n\n<details>\n<summary>⚠️ Response truncated — expand to see additional output that fits within GitHub's comment limit</summary>\n\n`;
+  const detailsClose = `\n\n</details>`;
+  const footer =
+    `\n\nThe full response was ${text.length.toLocaleString()} characters. ` +
+    `Any content beyond this comment is available in the [workflow run logs](${logsUrl}).`;
+
+  // Reserve room for the wrappers and footer, then split the remaining budget
+  // between the visible head and the collapsed overflow tail.
+  const overhead = detailsOpen.length + detailsClose.length + footer.length;
+  const contentBudget = Math.max(0, MAX_COMMENT_LENGTH - overhead);
+  const headLen = Math.floor(contentBudget * VISIBLE_HEAD_RATIO);
+  const head = text.slice(0, headLen);
+  const overflow = text.slice(headLen, headLen + (contentBudget - head.length));
+
+  return head + detailsOpen + overflow + detailsClose + footer;
+}
+
+/**
+ * Scheduled maintenance entry point (no originating issue or pull request).
+ *
+ * Runs deterministic, low-risk housekeeping that bounds repository growth, then
+ * commits and pushes any resulting changes.  Each task is independent so more
+ * can be added over time.  Destructive actions that need human review (for
+ * example stale-branch deletion) are intentionally NOT performed here.
+ */
+async function runMaintenance(): Promise<void> {
+  console.log("Running scheduled maintenance (no originating issue or pull request).");
+
+  await run(["git", "config", "user.name", "github-openclaw-intelligence[bot]"]);
+  await run(["git", "config", "user.email", "github-openclaw-intelligence[bot]@users.noreply.github.com"]);
+
+  const summary: string[] = [];
+
+  // ── Task: prune stale issue→session mappings and their transcripts ─────────
+  let prunedMappings = 0;
+  let prunedTranscripts = 0;
+  if (existsSync(issuesDir)) {
+    const cutoff = Date.now() - SESSION_RETENTION_DAYS * MS_PER_DAY;
+    for (const entry of readdirSync(issuesDir)) {
+      if (!entry.endsWith(".json")) continue;
+      const mappingPath = resolve(issuesDir, entry);
+      try {
+        const mapping = JSON.parse(readFileSync(mappingPath, "utf-8"));
+        const updatedAt = mapping.updatedAt ? Date.parse(mapping.updatedAt) : Number.NaN;
+        // Keep mappings without a parseable timestamp or still within retention.
+        if (!Number.isFinite(updatedAt) || updatedAt >= cutoff) continue;
+
+        if (mapping.sessionId) {
+          const transcript = resolve(sessionsDir, `${mapping.sessionId}.jsonl`);
+          if (existsSync(transcript)) {
+            rmSync(transcript, { force: true });
+            prunedTranscripts++;
+          }
+        }
+        rmSync(mappingPath, { force: true });
+        prunedMappings++;
+      } catch (err) {
+        console.log(`Skipping unparseable session mapping ${entry}: ${err}`);
+      }
+    }
+  }
+  summary.push(
+    `Pruned ${prunedMappings} stale session mapping(s) and ${prunedTranscripts} transcript(s) ` +
+    `last updated more than ${SESSION_RETENTION_DAYS} days ago.`
+  );
+
+  // ── Commit and push any changes ────────────────────────────────────────────
+  cleanLeakedRootFiles();
+  const addResult = await run(["git", "add", "-A"]);
+  if (addResult.exitCode !== 0) {
+    console.error("git add failed with exit code", addResult.exitCode);
+  }
+  const { exitCode } = await run(["git", "diff", "--cached", "--quiet"]);
+  if (exitCode !== 0) {
+    const commitResult = await run(["git", "commit", "-m", "openclaw-intelligence: scheduled maintenance"]);
+    if (commitResult.exitCode !== 0) {
+      console.error("git commit failed with exit code", commitResult.exitCode);
+    }
+    const pushSucceeded = await pushWithRetry();
+    if (!pushSucceeded) {
+      throw new Error("Scheduled maintenance could not push its changes after 10 attempts.");
+    }
+  } else {
+    console.log("Maintenance produced no changes to commit.");
+  }
+
+  console.log(`Maintenance summary:\n - ${summary.join("\n - ")}`);
 }
 
 /**
@@ -402,21 +591,41 @@ const reactionState = existsSync("/tmp/reaction-state.json")
 let succeeded = false;
 
 try {
-  // ── Read issue title and body from the event payload ──────────────────────────
-  // Use the webhook payload directly to avoid two `gh` API round-trips (~2–4 s).
-  // GitHub truncates string fields at 65 536 characters in webhook payloads, so
-  // we fall back to the API only when the body hits that limit.
-  const title = event.issue.title;
-  let body: string = event.issue.body ?? "";
-  if (body.length >= 65536) {
-    body = await gh("issue", "view", String(issueNumber), "--json", "body", "--jq", ".body");
+  // ── Scheduled maintenance runs have no originating issue or pull request ────
+  // Handle them on a dedicated, self-contained code path and exit before any of
+  // the issue/PR-specific logic below runs.
+  if (isScheduled) {
+    await runMaintenance();
+    succeeded = true;
+    process.exit(0);
   }
 
-  // ── Strip the @ prefix (routing signal, not part of the user's question) ────
+  // ── Build the prompt from the event payload ───────────────────────────────
+  // Use the webhook payload directly to avoid extra `gh` API round-trips.
+  // Issues, issue comments, pull requests, PR reviews, and PR review comments
+  // each carry the user's text in a different field, so branch on the event.
+  // GitHub truncates string fields at 65 536 characters in webhook payloads, so
+  // for issue bodies we fall back to the API only when the body hits that limit.
   let prompt: string;
-  if (eventName === "issue_comment") {
-    prompt = event.comment.body.replace(/^@\s*/, "");
+  if (eventName === "issue_comment" || eventName === "pull_request_review_comment") {
+    // A comment on an issue or on a pull-request review.
+    prompt = (event.comment?.body ?? "").replace(/^@\s*/, "");
+  } else if (eventName === "pull_request_review") {
+    // A submitted pull-request review; the text lives on `event.review.body`.
+    prompt = (event.review?.body ?? "").replace(/^@\s*/, "");
+  } else if (eventName === "pull_request") {
+    // A newly opened pull request; use its title and body.
+    const pr = event.pull_request ?? {};
+    const prTitle: string = pr.title ?? "";
+    const prBody: string = pr.body ?? "";
+    prompt = `${prTitle.replace(/^@\s*/, "")}\n\n${prBody}`;
   } else {
+    // A newly opened issue; use its title and body.
+    const title: string = event.issue.title;
+    let body: string = event.issue.body ?? "";
+    if (body.length >= 65536) {
+      body = await gh("issue", "view", String(issueNumber), "--json", "body", "--jq", ".body");
+    }
     prompt = `${title.replace(/^@\s*/, "")}\n\n${body}`;
   }
 
@@ -511,6 +720,10 @@ try {
   // Bridge the GitHub AGENTS.md convention with OpenClaw's native identity
   // system so that user-defined standing orders are respected by the runtime.
   generateSoulFromAgentsMd();
+
+  // ── Bridge committed MEMORY.md into the workspace ─────────────────────────
+  // Load the curated long-term memory seed so the runtime has durable context.
+  bridgeMemoryFromCanonical();
 
   // ── Resolve or create session mapping ───────────────────────────────────────
   // Each issue maps to exactly one session via `state/issues/<n>.json`.
@@ -867,12 +1080,10 @@ try {
   let commentBody: string;
   if (trimmedText.length === 0) {
     commentBody = `✅ The agent ran successfully but did not produce a text response. Check the repository for any file changes that were made.\n\nFor full details, see the [workflow run logs](https://github.com/${repo}/actions).`;
-  } else if (trimmedText.length > MAX_COMMENT_LENGTH) {
-    const truncationNotice =
-      `\n\n---\n⚠️ **Response truncated** — the full response was ${trimmedText.length.toLocaleString()} characters, which exceeds GitHub's comment limit. See the [workflow run logs](https://github.com/${repo}/actions) for the complete output.`;
-    commentBody = trimmedText.slice(0, MAX_COMMENT_LENGTH - truncationNotice.length) + truncationNotice;
   } else {
-    commentBody = trimmedText;
+    // buildCommentBody returns the text verbatim when it fits, or wraps the
+    // overflow in a collapsible <details> block when it exceeds the limit.
+    commentBody = buildCommentBody(trimmedText);
   }
 
   // Wrap the comment posting in try/catch so that a failure to post the reply
@@ -905,17 +1116,7 @@ try {
 
   // Retry push up to 10 times with increasing backoff delays, rebasing on
   // each conflict with `-X theirs` to auto-resolve in favour of the remote.
-  const pushBackoffs = [1000, 2000, 3000, 5000, 7000, 8000, 10000, 12000, 12000, 15000];
-  let pushSucceeded = false;
-  for (let i = 1; i <= 10; i++) {
-    const push = await run(["git", "push", "origin", `HEAD:${defaultBranch}`]);
-    if (push.exitCode === 0) { pushSucceeded = true; break; }
-    if (i < 10) {
-      console.log(`Push failed, rebasing and retrying (${i}/10)...`);
-      await run(["git", "pull", "--rebase", "-X", "theirs", "origin", defaultBranch]);
-      await new Promise(r => setTimeout(r, pushBackoffs[i - 1]));
-    }
-  }
+  const pushSucceeded = await pushWithRetry();
   if (!pushSucceeded) {
     // Post a warning comment so the user knows state was not persisted, then throw.
     try {

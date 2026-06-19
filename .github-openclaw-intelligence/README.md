@@ -8,10 +8,34 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 
 ## How It Works
 
-1. **Open an issue** (or add a comment) starting with `@`.
+1. **Open an issue or pull request** (or add a comment / PR review) starting with `@`.
 2. **GitHub Actions** detects the prefix and runs the OpenClaw workflow.
 3. **The agent** reads your prompt, uses its extended tool surface to process it, and posts the response as a comment.
 4. **Everything is committed** — session state, file changes, and conversation history all live in Git.
+
+In addition, a **scheduled maintenance** run executes weekly (no `@` prefix and no
+originating issue) to perform low-risk housekeeping such as pruning stale session
+state. See [Triggers](#triggers) below.
+
+---
+
+## Triggers
+
+The agent responds to the following events when the title/body starts with `@`
+(only collaborators with write access or higher can trigger it):
+
+| Event | Activates on |
+|-------|-------------|
+| Issue opened | Title starts with `@` |
+| Issue comment | Body starts with `@` (bots ignored) |
+| Pull request opened | Title starts with `@` |
+| PR review submitted | Review body starts with `@` (bots ignored) |
+| PR review comment | Body starts with `@` (bots ignored) |
+| Schedule (weekly cron) | Always — runs maintenance, no `@` needed |
+
+Scheduled maintenance runs skip authorization (there is no triggering user) and
+perform deterministic, low-risk housekeeping only. GitHub Actions cron timing is
+approximate — runs may be delayed by 5–60 minutes under load.
 
 ---
 
@@ -31,6 +55,7 @@ OpenClaw Intelligence is activated by the `@` prefix on issues and comments. It 
 ├── .pi/
 │   └── settings.json              # LLM provider, model, thinking level, trust policy, limits
 ├── AGENTS.md                      # Agent identity and standing orders
+├── MEMORY.md                      # Committed long-term memory seed (bridged at runtime)
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── ENABLED.md                     # Sentinel — delete to disable the agent (fail-closed)
@@ -96,6 +121,16 @@ Each step is a discrete TypeScript file that can fail independently.
 The `AGENTS.md` file defines the agent's personality and standing orders. At runtime, its content is automatically written to a `SOUL` file (gitignored) so that the OpenClaw runtime reads it as the agent's native identity — bridging the GitHub `AGENTS.md` convention with OpenClaw's `SOUL` system.
 
 To customise the agent, edit `AGENTS.md` with your instructions. If `AGENTS.md` contains only the default placeholder text, no `SOUL` is generated and the agent runs with OpenClaw defaults.
+
+---
+
+## Long-Term Memory
+
+The `MEMORY.md` file is the agent's **committed long-term memory seed** — a curated, human-readable set of durable facts the agent should always keep in context. Because it is committed to Git, it persists across the ephemeral GitHub Actions runners that execute each run. At runtime, `agent.ts` bridges it into the agent workspace so the OpenClaw runtime loads it as durable context (the runtime copy is gitignored).
+
+This is distinct from OpenClaw's *semantic* memory index (stored under `state/` via `OPENCLAW_STATE_DIR`), which the agent populates automatically as it works. Use `MEMORY.md` for facts you want guaranteed in context; let the semantic index handle everything else.
+
+**Keep `MEMORY.md` small and high-signal.** Prefer one short, durable fact per line; remove obsolete entries (an incorrect memory is worse than a missing one); never store secrets, tokens, or personal data. The weekly scheduled maintenance run is a good time to review and trim it. The pruning strategy is documented in the comment at the top of the file.
 
 ---
 

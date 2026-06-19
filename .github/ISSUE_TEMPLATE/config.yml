@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 OpenClaw Intelligence documentation
+    url: https://github.com/japer-technology/github-openclaw-intelligence/blob/main/.github-openclaw-intelligence/README.md
+    about: How the agent works, the @ prefix protocol, slash commands, and skills.
