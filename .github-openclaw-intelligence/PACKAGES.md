@@ -9,9 +9,9 @@
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [@buape/carbon](https://github.com/buape/carbon) | ^0.14.0 | Discord UI component library required by OpenClaw's bundled Discord channel plugin. The plugin is eagerly loaded during CLI bootstrap even when using `--local` mode. |
-| [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) | ^1.60.0 | Lark/Feishu API SDK required by OpenClaw's bundled Feishu channel plugin. The plugin is eagerly loaded during CLI bootstrap via `jiti`, which resolves modules from the project root — so this must be a direct dependency to ensure top-level hoisting. |
-| [openclaw](https://github.com/openclaw/openclaw) | ^2026.5.22 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+| [@buape/carbon](https://github.com/buape/carbon) | ^0.16.0 | Discord UI component library required by OpenClaw's bundled Discord channel plugin. The plugin is eagerly loaded during CLI bootstrap even when using `--local` mode. |
+| [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) | ^1.68.0 | Lark/Feishu API SDK required by OpenClaw's bundled Feishu channel plugin. The plugin is eagerly loaded during CLI bootstrap via `jiti`, which resolves modules from the project root — so this must be a direct dependency to ensure top-level hoisting. |
+| [openclaw](https://github.com/openclaw/openclaw) | ^2026.6.11 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
 
 ### OpenClaw Feature Surface
 
@@ -50,13 +50,13 @@ These are referenced in `.github/workflows/`:
 
 | Action | Workflow | Description |
 |--------|----------|-------------|
-| [actions/checkout@v4](https://github.com/actions/checkout) | agent | Checks out the repository so the agent can read and write files. |
+| [actions/checkout@v7](https://github.com/actions/checkout) | agent | Checks out the repository so the agent can read and write files. |
 | [oven-sh/setup-bun@v2](https://github.com/oven-sh/setup-bun) | agent | Installs the Bun runtime in the GitHub Actions environment. |
-| [actions/setup-node@v4](https://github.com/actions/setup-node) | agent | Installs Node.js 22 required by the OpenClaw CLI binary. |
-| [actions/cache@v5](https://github.com/actions/cache) | agent | Caches `node_modules` keyed on the `bun.lock` hash to speed up dependency installation. |
-| [actions/configure-pages@v5](https://github.com/actions/configure-pages) | agent | Configures GitHub Pages deployment. |
-| [actions/upload-pages-artifact@v4](https://github.com/actions/upload-pages-artifact) | agent | Uploads the static site artifact from `.github-openclaw-intelligence/public-fabric/`. |
-| [actions/deploy-pages@v4](https://github.com/actions/deploy-pages) | agent | Deploys the uploaded artifact to GitHub Pages. |
+| [actions/setup-node@v6](https://github.com/actions/setup-node) | agent | Installs Node.js 22 required by the OpenClaw CLI binary. |
+| [actions/cache@v6](https://github.com/actions/cache) | agent | Caches `node_modules` keyed on the `bun.lock` hash to speed up dependency installation. |
+| [actions/configure-pages@v6](https://github.com/actions/configure-pages) | agent | Configures GitHub Pages deployment. |
+| [actions/upload-pages-artifact@v5](https://github.com/actions/upload-pages-artifact) | agent | Uploads the static site artifact from `.github-openclaw-intelligence/public-fabric/`. |
+| [actions/deploy-pages@v5](https://github.com/actions/deploy-pages) | agent | Deploys the uploaded artifact to GitHub Pages. |
 
 ## LLM Provider Dependencies (one required)
 

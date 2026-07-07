@@ -1,5 +1,5 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.0)                      ║
+# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.1)                      ║
 # ║                                                                              ║
 # ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
 # ║  OpenClaw responds to `@`.                                                   ║
@@ -76,7 +76,7 @@ jobs:
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
 
@@ -315,7 +315,7 @@ jobs:
 
       # 3. CHECKOUT
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
@@ -357,7 +357,7 @@ jobs:
       # 8. CACHE
       - name: Cache dependencies
         if: steps.check-folder.outputs.exists == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .github-openclaw-intelligence/node_modules
           key: oci-deps-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
@@ -387,7 +387,7 @@ jobs:
       # 10b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
       - name: Setup Node.js
         if: steps.check-folder.outputs.exists == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
