@@ -3,8 +3,8 @@
     "build": "echo 'Bun runs TypeScript natively — no compilation required.'"
   },
   "dependencies": {
-    "@buape/carbon": "^0.14.0",
-    "@larksuiteoapi/node-sdk": "^1.60.0",
-    "openclaw": "^2026.5.22"
+    "@buape/carbon": "^0.16.0",
+    "@larksuiteoapi/node-sdk": "^1.68.0",
+    "openclaw": "^2026.6.11"
   }
 }
