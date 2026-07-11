@@ -488,15 +488,6 @@ async function runMaintenance(): Promise<void> {
  * Called just before `git add` to ensure leaked files are never staged.
  */
 function cleanLeakedRootFiles(): void {
-  const isTracked = (name: string): boolean => {
-    const result = Bun.spawnSync(["git", "ls-files", "--", name], {
-      cwd: repoRoot,
-      stdout: "pipe",
-      stderr: "ignore",
-    });
-    return result.exitCode === 0 && result.stdout.length > 0;
-  };
-
   // Every file name that OpenClaw's workspace bootstrap or runtime may
   // create inside the workspace directory (which is the repo root).
   // Derived from the DEFAULT_*_FILENAME constants in the openclaw SDK's
@@ -514,6 +505,18 @@ function cleanLeakedRootFiles(): void {
     "TOOLS.md",
     "USER.md",
   ];
+  // Also remove directories that OpenClaw may create in the workspace root.
+  const leakedDirNames = [".openclaw", "memory"];
+  const trackedResult = Bun.spawnSync(
+    ["git", "ls-files", "--", ...leakedFileNames, ...leakedDirNames],
+    { cwd: repoRoot, stdout: "pipe", stderr: "ignore" },
+  );
+  const trackedPaths = trackedResult.exitCode === 0
+    ? new TextDecoder().decode(trackedResult.stdout).trim().split("\n").filter(Boolean)
+    : [...leakedFileNames, ...leakedDirNames];
+  const isTracked = (name: string): boolean =>
+    trackedPaths.some((path) => path === name || path.startsWith(`${name}/`));
+
   for (const name of leakedFileNames) {
     const filePath = resolve(repoRoot, name);
     if (existsSync(filePath)) {
@@ -529,8 +532,6 @@ function cleanLeakedRootFiles(): void {
       }
     }
   }
-  // Also remove directories that OpenClaw may create in the workspace root.
-  const leakedDirNames = [".openclaw", "memory"];
   for (const name of leakedDirNames) {
     const dirPath = resolve(repoRoot, name);
     if (existsSync(dirPath)) {
