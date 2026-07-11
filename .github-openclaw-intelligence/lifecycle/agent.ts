@@ -647,8 +647,11 @@ try {
     prompt = `${prTitle.replace(/^@\s*/, "")}\n\n${prBody}`;
   } else {
     // A newly opened issue; use its title and body.
-    const title: string = event.issue?.title ?? "";
-    let body: string = event.issue?.body ?? "";
+    if (!event.issue) {
+      throw new Error(`The "${eventName}" event payload is missing its issue object.`);
+    }
+    const title: string = event.issue.title ?? "";
+    let body: string = event.issue.body ?? "";
     if (body.length >= 65536) {
       body = await gh("issue", "view", String(issueNumber), "--json", "body", "--jq", ".body");
     }
