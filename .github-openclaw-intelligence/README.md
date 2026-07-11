@@ -145,20 +145,23 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
   "defaultThinkingLevel": "high",
   "trustPolicy": {
     "trustedUsers": ["your-github-username"],
-    "semiTrustedRoles": ["write"],
+    "semiTrustedRoles": ["admin", "maintain", "write"],
     "untrustedBehavior": "read-only-response"
   },
   "limits": {
-    "maxTokensPerRun": 500000,
-    "maxToolCallsPerRun": 200,
     "workflowTimeoutMinutes": 30
+  },
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 32000
   }
 }
 ```
 
 Settings are validated against `config/settings.schema.json` during the preflight step.
 
-The `--model`, `--provider`, and `--thinking` flags are passed explicitly to the OpenClaw CLI from this file, ensuring the committed settings are always respected regardless of host-level configuration on the runner image.
+The provider, model, thinking level, timeout, and compaction values are passed explicitly to OpenClaw, ensuring the committed settings are respected regardless of host-level configuration on the runner image.
 
 ### Supported Providers
 
@@ -190,11 +193,8 @@ When no `trustPolicy` is configured, all actors with write-level access are trea
 
 ### Resource Limits
 
-The `limits` section sets resource boundaries:
-
-- **`maxTokensPerRun`** — Maximum total tokens per agent run.
-- **`maxToolCallsPerRun`** — Maximum tool calls per agent run.
-- **`workflowTimeoutMinutes`** — Hard time boundary for the workflow (max 360).
+The `limits.workflowTimeoutMinutes` setting bounds the OpenClaw subprocess. The
+workflow also has a 30-minute job-level timeout as a fail-safe.
 
 ---
 

@@ -49,16 +49,6 @@
       "type": "object",
       "description": "Cost and resource boundaries for agent runs",
       "properties": {
-        "maxTokensPerRun": {
-          "type": "integer",
-          "minimum": 1000,
-          "description": "Maximum total tokens (input + output) allowed per agent run"
-        },
-        "maxToolCallsPerRun": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Maximum number of tool calls allowed per agent run"
-        },
         "workflowTimeoutMinutes": {
           "type": "integer",
           "minimum": 1,
@@ -85,33 +75,6 @@
           "type": "integer",
           "minimum": 1024,
           "description": "Number of recent tokens to preserve verbatim during compaction. Higher values keep more recent context but compact more aggressively for older messages."
-        }
-      },
-      "additionalProperties": false
-    },
-    "retry": {
-      "type": "object",
-      "description": "Automatic retry settings for transient LLM API errors. Reduces hard failures from rate-limit spikes and server errors in CI environments.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Whether automatic retry with exponential backoff is enabled"
-        },
-        "maxRetries": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "description": "Maximum number of retry attempts before failing"
-        },
-        "baseDelayMs": {
-          "type": "integer",
-          "minimum": 100,
-          "description": "Base delay in milliseconds for the first retry (doubles with each subsequent retry)"
-        },
-        "maxDelayMs": {
-          "type": "integer",
-          "minimum": 1000,
-          "description": "Maximum delay in milliseconds between retries (caps exponential backoff)"
         }
       },
       "additionalProperties": false

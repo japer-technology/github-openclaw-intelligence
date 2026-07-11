@@ -207,7 +207,7 @@ When updating the `openclaw` dependency version:
 ## 8. Recommended Follow-Up Work
 
 1. ~~**Add compaction settings** — Configure `compaction.enabled`, `reserveTokens`, and `keepRecentTokens` in `.pi/settings.json` (P0)~~ ✅ Done — configured with `reserveTokens: 16384`, `keepRecentTokens: 32000`
-2. ~~**Add retry settings** — Configure `retry.enabled`, `maxRetries`, and delay parameters (P0)~~ ✅ Done — configured with `maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`
+2. **Retry settings** — Upstream-managed by OpenClaw; OCI no longer exposes the former delay settings because they are not accepted by the current runtime schema.
 3. **Add GitHub context extension** — Create `.pi/extensions/github-context.ts` with `promptSnippet` (P1)
 4. **Add prompt templates** — Create `.pi/prompts/` with code-review and issue-triage templates (P1)
 5. **Monitor OpenClaw releases** — Track when OpenClaw updates its pi-coding-agent dependency to ensure OCI receives upstream improvements
@@ -282,4 +282,3 @@ The narrow integration surface OCI uses with `openclaw` is unchanged in 2026.5.2
 | `.github-openclaw-intelligence/PACKAGES.md` | Version row updated |
 | `.github-openclaw-intelligence/public-fabric/status.json` | Public dependencies card updated |
 | `.github/workflows/github-openclaw-intelligence-agent.yml` | Banner version updated |
-
