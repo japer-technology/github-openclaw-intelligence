@@ -505,9 +505,25 @@ function cleanLeakedRootFiles(): void {
     "TOOLS.md",
     "USER.md",
   ];
+  // Also remove directories that OpenClaw may create in the workspace root.
+  const leakedDirNames = [".openclaw", "memory"];
+  const trackedResult = Bun.spawnSync(
+    ["git", "ls-files", "--", ...leakedFileNames, ...leakedDirNames],
+    { cwd: repoRoot, stdout: "pipe", stderr: "ignore" },
+  );
+  const trackedPaths = trackedResult.exitCode === 0
+    ? new TextDecoder().decode(trackedResult.stdout).trim().split("\n").filter(Boolean)
+    : [...leakedFileNames, ...leakedDirNames];
+  const isTracked = (name: string): boolean =>
+    trackedPaths.some((path) => path === name || path.startsWith(`${name}/`));
+
   for (const name of leakedFileNames) {
     const filePath = resolve(repoRoot, name);
     if (existsSync(filePath)) {
+      if (isTracked(name)) {
+        console.log(`Preserved tracked workspace file: ${name}`);
+        continue;
+      }
       try {
         unlinkSync(filePath);
         console.log(`Cleaned leaked file from repo root: ${name}`);
@@ -516,11 +532,13 @@ function cleanLeakedRootFiles(): void {
       }
     }
   }
-  // Also remove directories that OpenClaw may create in the workspace root.
-  const leakedDirNames = [".openclaw", "memory"];
   for (const name of leakedDirNames) {
     const dirPath = resolve(repoRoot, name);
     if (existsSync(dirPath)) {
+      if (isTracked(name)) {
+        console.log(`Preserved tracked workspace directory: ${name}/`);
+        continue;
+      }
       try {
         rmSync(dirPath, { recursive: true, force: true });
         console.log(`Cleaned leaked directory from repo root: ${name}/`);
