@@ -80,13 +80,12 @@ Six setting groups are configured:
 | `defaultModel` | `gpt-5.4` |
 | `defaultThinkingLevel` | `high` |
 | `compaction.enabled` | `true` (with `reserveTokens: 16384`, `keepRecentTokens: 32000`) |
-| `retry.enabled` | `true` (with `maxRetries: 3`, `baseDelayMs: 2000`, `maxDelayMs: 60000`) |
+| `limits.workflowTimeoutMinutes` | `30` |
 
-Additional settings for trust policy and resource limits are also configured but are consumed by the orchestrator (`agent.ts`), not by the OpenClaw runtime directly.
+Trust policy and workflow timeout settings are consumed by the orchestrator
+(`agent.ts`). Compaction values are translated into OpenClaw's runtime config.
 
 The `compaction` settings prevent context window exhaustion during long multi-turn conversations. `keepRecentTokens` is set to `32000` (higher than the pi-coding-agent default of `20000`) because GitHub Actions tool outputs — file diffs, build logs, `gh` CLI results — are typically larger than interactive coding session outputs.
-
-The `retry` settings enable automatic retry with exponential backoff for transient LLM API errors. This is particularly important in CI environments where concurrent workflow runs can cause rate-limit spikes.
 
 ### 2.5 Context Files (`AGENTS.md` → `SOUL`)
 
@@ -144,9 +143,11 @@ The agent uses four environment variables for runtime isolation:
 
 Compaction settings are now configured in `.pi/settings.json` with `compaction.enabled: true`, `reserveTokens: 16384`, and `keepRecentTokens: 32000`. The `keepRecentTokens` value is higher than the pi-coding-agent default (`20000`) to accommodate the larger tool outputs typical in GitHub Actions workflows (file diffs, build logs, `gh` CLI results).
 
-### 3.2 ~~Retry Settings~~ ✅ Now Configured
+### 3.2 Retry Settings
 
-Retry settings are now configured in `.pi/settings.json` with `retry.enabled: true`, `maxRetries: 3`, `baseDelayMs: 2000`, and `maxDelayMs: 60000`. This provides automatic retry with exponential backoff for transient LLM API errors, reducing hard failures from rate-limit spikes in CI environments.
+OpenClaw owns provider retry behavior internally. OCI does not expose a separate
+retry block because current OpenClaw runtime configuration has no equivalent for
+the former delay-based project settings.
 
 ### 3.3 Custom Extensions (`.pi/extensions/`)
 
@@ -229,7 +230,7 @@ Extension handlers can use `ctx.signal` to forward cancellation into nested mode
 | Feature | Effort | Impact | Priority |
 |---|---|---|---|
 | ~~Compaction settings~~ | ~~Low~~ | ~~High~~ | ~~**P0**~~ ✅ Done |
-| ~~Retry settings~~ | ~~Low~~ | ~~High~~ | ~~**P0**~~ ✅ Done |
+| Retry settings | N/A | N/A | **Upstream-managed** |
 | Custom extensions (GitHub tools) | Medium | High | **P1** — reduces prompt complexity |
 | Prompt templates | Low | Medium | **P1** — standardises common workflows |
 | System prompt extension | Low | Medium | **P2** — separates identity from behavior |
@@ -254,7 +255,7 @@ GMI (the sibling project) uses the same underlying pi-coding-agent runtime but a
 | Custom skills | ✅ `memory`, `skill-creator` | ❌ None (10 bundled only) | OCI should evaluate custom skills |
 | Prompt templates | ✅ `code-review`, `issue-triage` | ❌ None | OCI should add |
 | Compaction settings | Configured | ✅ Configured | Gap closed |
-| Retry settings | Configured | ✅ Configured | Gap closed |
+| Retry settings | Configured | Upstream-managed | Intentional |
 | Documentation analysis | Rich `docs/analysis/` | ✅ Comprehensive | Aligned with GMI |
 
 ---

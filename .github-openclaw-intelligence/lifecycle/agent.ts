@@ -138,18 +138,34 @@ const soulPath = resolve(openclawDir, "SOUL");
 const canonicalMemoryPath = resolve(openclawDir, "MEMORY.md");
 const workspaceMemoryPath = resolve(repoRoot, "MEMORY.md");
 
+const leakedFileNames = [
+  "AGENTS.md",
+  "BOOTSTRAP.md",
+  "HEARTBEAT.md",
+  "IDENTITY.md",
+  "MEMORY.md",
+  "memory.md",
+  "SOUL",
+  "SOUL.md",
+  "TOOLS.md",
+  "USER.md",
+];
+const leakedDirNames = [".openclaw", "memory"];
+
+// Preserve anything that belonged to the host repository before this process
+// started. Only workspace artifacts created by OpenClaw are eligible for cleanup.
+const preExistingWorkspaceArtifacts = new Set(
+  [...leakedFileNames, ...leakedDirNames]
+    .map((name) => resolve(repoRoot, name))
+    .filter((path) => existsSync(path)),
+);
+
 // Bundled skills shipped inside the openclaw npm package.
 const bundledSkillsDir = resolve(openclawDir, "node_modules", "openclaw", "skills");
 
 // GitHub enforces a ~65 535 character limit on issue comments; cap at 60 000
 // characters to leave a comfortable safety margin and avoid API rejections.
 const MAX_COMMENT_LENGTH = 60000;
-
-// Maximum time (in ms) to wait for the agent process to produce output.
-// If the agent does not close stdout within this window, both the agent and
-// the `tee` helper are forcefully killed.  5 minutes is generous enough to
-// cover large prompts while still surfacing hangs quickly.
-const AGENT_TIMEOUT_MS = 5 * 60 * 1000;
 
 // After the agent's stdout closes (output fully captured), we give the
 // process a short grace period to exit on its own before killing it.
@@ -168,15 +184,31 @@ const MS_PER_DAY = 86_400_000;
 const VISIBLE_HEAD_RATIO = 0.7;
 
 // Parse the full GitHub Actions event payload (contains issue/comment details).
-const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH!, "utf-8"));
+const eventPath = process.env.GITHUB_EVENT_PATH;
+if (!eventPath) {
+  throw new Error("GITHUB_EVENT_PATH is required; agent.ts must run from a GitHub Actions event.");
+}
+
+let event: any;
+try {
+  event = JSON.parse(readFileSync(eventPath, "utf-8"));
+} catch (err) {
+  throw new Error(`Could not parse GitHub event payload at ${eventPath}: ${err}`);
+}
 
 // "issues" for new issues, "issue_comment" for replies on existing issues,
 // "pull_request" / "pull_request_review" / "pull_request_review_comment" for
 // pull-request activity, and "schedule" for cron-driven maintenance runs.
-const eventName = process.env.GITHUB_EVENT_NAME!;
+const eventName = process.env.GITHUB_EVENT_NAME;
+if (!eventName) {
+  throw new Error("GITHUB_EVENT_NAME is required; agent.ts must run from GitHub Actions.");
+}
 
 // "owner/repo" format — used when calling the GitHub REST API via `gh api`.
-const repo = process.env.GITHUB_REPOSITORY!;
+const repo = process.env.GITHUB_REPOSITORY;
+if (!repo) {
+  throw new Error("GITHUB_REPOSITORY is required; expected the owner/repository value.");
+}
 
 // Fall back to "main" if the repository's default branch is not set in the event.
 const defaultBranch = event.repository?.default_branch ?? "main";
@@ -236,7 +268,9 @@ console.log(`Configured provider: ${configuredProvider}, model: ${configuredMode
 // Read the trustPolicy and limits sections from settings.json.  These control
 // per-actor capability gating and resource boundaries respectively.
 const trustPolicy: TrustPolicy | undefined = piSettings.trustPolicy;
-const configuredLimits: { maxTokensPerRun?: number; maxToolCallsPerRun?: number; workflowTimeoutMinutes?: number } | undefined = piSettings.limits;
+const configuredLimits: { workflowTimeoutMinutes?: number } | undefined = piSettings.limits;
+const workflowTimeoutMinutes = configuredLimits?.workflowTimeoutMinutes ?? 30;
+const AGENT_TIMEOUT_MS = workflowTimeoutMinutes * 60 * 1000;
 
 // The GitHub actor who triggered the workflow.
 const actor: string = process.env.GITHUB_ACTOR ?? "";
@@ -368,6 +402,10 @@ function generateSoulFromAgentsMd(): void {
  */
 function bridgeMemoryFromCanonical(): void {
   if (!existsSync(canonicalMemoryPath)) return;
+  if (existsSync(workspaceMemoryPath)) {
+    console.log("Workspace MEMORY.md already exists — preserving it instead of installing the canonical seed");
+    return;
+  }
   try {
     copyFileSync(canonicalMemoryPath, workspaceMemoryPath);
     console.log("Bridged MEMORY.md into workspace");
@@ -519,6 +557,7 @@ function cleanLeakedRootFiles(): void {
 
   for (const name of leakedFileNames) {
     const filePath = resolve(repoRoot, name);
+    if (preExistingWorkspaceArtifacts.has(filePath)) continue;
     if (existsSync(filePath)) {
       if (isTracked(name)) {
         console.log(`Preserved tracked workspace file: ${name}`);
@@ -534,6 +573,7 @@ function cleanLeakedRootFiles(): void {
   }
   for (const name of leakedDirNames) {
     const dirPath = resolve(repoRoot, name);
+    if (preExistingWorkspaceArtifacts.has(dirPath)) continue;
     if (existsSync(dirPath)) {
       if (isTracked(name)) {
         console.log(`Preserved tracked workspace directory: ${name}/`);
@@ -600,9 +640,14 @@ function parseSkillInvocation(prompt: string): { skillName: string; remainder: s
 // `/tmp/reaction-state.json`.  We read it here so the `finally` block can
 // add the outcome reaction (👍 or 👎) when the agent finishes.
 // If the file is absent (e.g., authorization was skipped), we default to null.
-const reactionState = existsSync("/tmp/reaction-state.json")
-  ? JSON.parse(readFileSync("/tmp/reaction-state.json", "utf-8"))
-  : null;
+let reactionState: any = null;
+if (existsSync("/tmp/reaction-state.json")) {
+  try {
+    reactionState = JSON.parse(readFileSync("/tmp/reaction-state.json", "utf-8"));
+  } catch (err) {
+    throw new Error(`Could not parse authorization state: ${err}`);
+  }
+}
 
 // Track whether the agent completed successfully so the `finally` block can
 // add the correct outcome reaction (👍 on success, 👎 on error).
@@ -639,7 +684,10 @@ try {
     prompt = `${prTitle.replace(/^@\s*/, "")}\n\n${prBody}`;
   } else {
     // A newly opened issue; use its title and body.
-    const title: string = event.issue.title;
+    if (!event.issue) {
+      throw new Error(`The "${eventName}" event payload is missing its issue object.`);
+    }
+    const title: string = event.issue.title ?? "";
     let body: string = event.issue.body ?? "";
     if (body.length >= 65536) {
       body = await gh("issue", "view", String(issueNumber), "--json", "body", "--jq", ".body");
@@ -649,11 +697,28 @@ try {
 
   // ── Resolve trust level for the actor ─────────────────────────────────────
   // Read the actor's repository permission from the reaction-state metadata
-  // written by the Authorize workflow step.  If unavailable, default to "write"
-  // since the Authorize step already verified at least write-level access.
-  const actorPermission: string = reactionState?.actorPermission ?? "write";
+  // written by the Authorize workflow step. Fail closed when that evidence is
+  // unavailable rather than assuming write access.
+  const actorPermission = reactionState?.actorPermission;
+  if (typeof actorPermission !== "string" || !actorPermission) {
+    throw new Error("Authorization state is missing the actor's repository permission.");
+  }
   const actorTrustLevel = resolveTrustLevel(actor, actorPermission, trustPolicy);
   console.log(`Trust level for ${actor} (${actorPermission}): ${actorTrustLevel}`);
+
+  if (actorTrustLevel === "untrusted") {
+    const behavior = trustPolicy?.untrustedBehavior ?? "block";
+    if (behavior === "read-only-response") {
+      await gh(
+        "issue",
+        "comment",
+        String(issueNumber),
+        "--body",
+        "⚠️ This request was not run because the triggering account is not trusted by this repository's OpenClaw policy.",
+      );
+    }
+    throw new Error(`Agent invocation blocked for untrusted actor ${actor}`);
+  }
 
   // ── Parse command from prompt ─────────────────────────────────────────────
   // Use the command parser to detect slash commands (e.g. `/status`, `/help`,
@@ -880,13 +945,21 @@ try {
     agents: {
       defaults: {
         workspace: repoRoot,
-        timeoutSeconds: 600,
+        timeoutSeconds: workflowTimeoutMinutes * 60,
         model: `${configuredProvider}/${configuredModel}`,
         // Prevent OpenClaw from creating bootstrap/identity template files
         // (AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, HEARTBEAT.md)
         // inside the workspace directory (repo root).  The agent's identity is
         // already handled by the AGENTS.md → SOUL bridge in generateSoulFromAgentsMd().
         skipBootstrap: true,
+        ...(piSettings.compaction?.enabled === false
+          ? {}
+          : {
+              compaction: {
+                reserveTokens: piSettings.compaction?.reserveTokens,
+                keepRecentTokens: piSettings.compaction?.keepRecentTokens,
+              },
+            }),
       },
     },
     skills: {
@@ -895,6 +968,24 @@ try {
         extraDirs,
       },
     },
+    ...(actorTrustLevel === "semi-trusted"
+      ? {
+          tools: {
+            deny: [
+              "exec",
+              "process",
+              "write",
+              "edit",
+              "apply_patch",
+              "browser",
+              "canvas",
+              "nodes",
+              "cron",
+              "gateway",
+            ],
+          },
+        }
+      : {}),
   };
   const runtimeConfigPath = "/tmp/openclaw-runtime.json";
   writeFileSync(runtimeConfigPath, JSON.stringify(runtimeConfig, null, 2));

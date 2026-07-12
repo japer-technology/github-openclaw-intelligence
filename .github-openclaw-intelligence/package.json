@@ -1,10 +1,11 @@
 {
   "scripts": {
-    "build": "echo 'Bun runs TypeScript natively — no compilation required.'"
+    "build": "echo 'Bun runs TypeScript natively — no compilation required.'",
+    "test": "bun test lifecycle/*.test.ts"
   },
   "dependencies": {
     "@buape/carbon": "^0.16.0",
-    "@larksuiteoapi/node-sdk": "^1.68.0",
+    "@larksuiteoapi/node-sdk": "^1.70.0",
     "openclaw": "^2026.6.11"
   }
 }
