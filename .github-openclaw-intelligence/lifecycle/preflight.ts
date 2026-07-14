@@ -49,6 +49,7 @@ const openclawDir = resolve(import.meta.dir, "..");
 const configDir = resolve(openclawDir, "config");
 const piSettingsPath = resolve(openclawDir, ".pi", "settings.json");
 const schemaPath = resolve(configDir, "settings.schema.json");
+const packageJsonPath = resolve(openclawDir, "package.json");
 
 // ─── Required files ───────────────────────────────────────────────────────────
 const requiredFiles: { path: string; label: string }[] = [
@@ -56,7 +57,9 @@ const requiredFiles: { path: string; label: string }[] = [
   { path: piSettingsPath, label: ".pi/settings.json" },
   { path: resolve(openclawDir, "lifecycle", "agent.ts"), label: "lifecycle/agent.ts" },
   { path: resolve(openclawDir, "lifecycle", "enabled.ts"), label: "lifecycle/enabled.ts" },
-  { path: resolve(openclawDir, "package.json"), label: "package.json" },
+  { path: resolve(openclawDir, "lifecycle", "local-chat.ts"), label: "lifecycle/local-chat.ts" },
+  { path: resolve(openclawDir, "bun.lock"), label: "bun.lock" },
+  { path: packageJsonPath, label: "package.json" },
 ];
 
 // ─── Collect errors ───────────────────────────────────────────────────────────
@@ -66,6 +69,19 @@ const errors: string[] = [];
 for (const { path: filePath, label } of requiredFiles) {
   if (!existsSync(filePath)) {
     errors.push(`Missing required file: ${label}`);
+  }
+}
+
+// ── 1b. Ensure local chat entry point is installed ───────────────────────────
+if (existsSync(packageJsonPath)) {
+  try {
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+    const chatScript = packageJson?.scripts?.chat;
+    if (chatScript !== "bun run lifecycle/local-chat.ts") {
+      errors.push('package.json: missing required "chat" script for lifecycle/local-chat.ts');
+    }
+  } catch (err) {
+    errors.push(`package.json: invalid JSON (${err instanceof Error ? err.message : String(err)})`);
   }
 }
 

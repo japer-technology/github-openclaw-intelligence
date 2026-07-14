@@ -1,5 +1,5 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.3)                      ║
+# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.4)                      ║
 # ║                                                                              ║
 # ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
 # ║  OpenClaw responds to `@`.                                                   ║
@@ -144,6 +144,26 @@ jobs:
           unzip -q /tmp/template.zip -d /tmp/template
 
           EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
+
+          missing=false
+          for required in \
+            "$TARGET/lifecycle/local-chat.ts" \
+            "$TARGET/package.json" \
+            "$TARGET/bun.lock"; do
+            if [ ! -f "$EXTRACTED/$required" ]; then
+              echo "::error::Template is missing required local chat file: $required"
+              missing=true
+            fi
+          done
+
+          if ! grep -q '"chat"[[:space:]]*:[[:space:]]*"bun run lifecycle/local-chat.ts"' "$EXTRACTED/$TARGET/package.json"; then
+            echo "::error::Template package.json is missing the local chat script."
+            missing=true
+          fi
+
+          if [ "$missing" = true ]; then
+            exit 1
+          fi
 
           rm -rf "$EXTRACTED/$TARGET/node_modules"
           rm -rf "$EXTRACTED/$TARGET/docs/analysis"
