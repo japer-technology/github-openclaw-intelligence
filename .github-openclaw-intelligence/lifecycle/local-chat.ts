@@ -311,7 +311,8 @@ function listThreads(): Thread[] {
 
 /**
  * Atomically allocate the next free integer thread ID.
- * See file header "IDENTITY MODEL — CLOSED WORLD" for the design rationale.
+ * Thread identity is closed-world: IDs are allocated only by this tool and
+ * unknown refs are rejected rather than auto-created (see the CLI help text).
  */
 function allocateThread(name: string | null): Thread {
   if (name !== null) {
@@ -1477,7 +1478,7 @@ async function repl(initial: Thread, rt: RuntimeState): Promise<void> {
         const brandLabel = localBrandLabel(rt.provider);
         console.log("  Status:");
         console.log(`    Provider:    ${rt.provider}${brandLabel ? ` (${brandLabel}, local server)` : ""}`);
-        console.log(`    Pi --provider: ${resolveOpenclawProvider(rt.provider)}`);
+        console.log(`    OpenClaw --provider: ${resolveOpenclawProvider(rt.provider)}`);
         console.log(`    Model:       ${rt.model}`);
         if (rt.thinking) console.log(`    Thinking:    ${rt.thinking}`);
         console.log(`    Thread:      #${current.id}${current.name ? ` ("${current.name}")` : ""}`);
