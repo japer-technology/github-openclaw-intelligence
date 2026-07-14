@@ -145,6 +145,7 @@ jobs:
 
           EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
           TEMPLATE_TARGET="$EXTRACTED/$TARGET"
+          LOCAL_CHAT_SCRIPT="bun run lifecycle/local-chat.ts"
 
           missing=false
           for required in \
@@ -157,7 +158,7 @@ jobs:
             fi
           done
 
-          if ! grep -q '"chat"[[:space:]]*:[[:space:]]*"bun run lifecycle/local-chat.ts"' "$TEMPLATE_TARGET/package.json"; then
+          if [ "$(jq -r '.scripts.chat // ""' "$TEMPLATE_TARGET/package.json")" != "$LOCAL_CHAT_SCRIPT" ]; then
             echo "::error::Template package.json is missing the local chat script."
             missing=true
           fi

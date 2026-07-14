@@ -50,6 +50,7 @@ const configDir = resolve(openclawDir, "config");
 const piSettingsPath = resolve(openclawDir, ".pi", "settings.json");
 const schemaPath = resolve(configDir, "settings.schema.json");
 const packageJsonPath = resolve(openclawDir, "package.json");
+const expectedChatScript = "bun run lifecycle/local-chat.ts";
 
 // ─── Required files ───────────────────────────────────────────────────────────
 const requiredFiles: { path: string; label: string }[] = [
@@ -77,7 +78,7 @@ if (existsSync(packageJsonPath)) {
   try {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     const chatScript = packageJson?.scripts?.chat;
-    if (chatScript !== "bun run lifecycle/local-chat.ts") {
+    if (chatScript !== expectedChatScript) {
       errors.push('package.json: missing required "chat" script for lifecycle/local-chat.ts');
     }
   } catch (err) {
