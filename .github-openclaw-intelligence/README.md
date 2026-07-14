@@ -62,7 +62,7 @@ Talk to the **same agent from your terminal** — no GitHub Issues, no Actions, 
 #    Windows:  powershell -c "irm bun.sh/install.ps1 | iex"
 #    macOS/Linux:  curl -fsSL https://bun.sh/install | bash
 
-# 2. Install dependencies (once, from the repo root)
+# 2. Install dependencies (once, from the repository root)
 cd .github-openclaw-intelligence
 bun install
 
@@ -74,6 +74,8 @@ export OPENAI_API_KEY="sk-..."        # bash/zsh
 # 4. Chat
 bun run chat
 ```
+
+PowerShell users should run each command separately. After `Set-Location .\.github-openclaw-intelligence`, run `bun install`, then run `bun run chat`; do not combine `cd` and `bun run chat` in one command.
 
 `bun run chat` with no arguments opens an **interactive launcher**: it lists your existing threads and lets you resume one, create a new one, or quit. Inside the chat, type `/help` for the full in-chat command list and `/exit` (or Ctrl-C) to leave.
 
@@ -143,6 +145,7 @@ Highest precedence first: environment variables, then `.pi/settings.json`, then 
 | Symptom | Fix |
 |---------|-----|
 | `openclaw binary not found` | Run `bun install` inside `.github-openclaw-intelligence/` |
+| `Set-Location : A positional parameter cannot be found that accepts argument 'run'` | You are passing `bun run chat` to PowerShell's `cd`. Run `Set-Location .\.github-openclaw-intelligence` first, then run `bun run chat` as a separate command. |
 | `Integrity check failed for tarball` during install | `bun pm cache rm && bun install` |
 | Missing API key prompt | Set the provider's env var (see [Supported Providers](#supported-providers)), or choose the LM Studio scan option |
 | Empty / garbled reply | Inspect the raw streams saved at `state/local-last-run.log` |
