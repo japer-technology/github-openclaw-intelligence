@@ -593,10 +593,17 @@ Usage:
 
 Environment overrides (highest precedence):
   LOCAL_PROVIDER      Override .pi/settings.json defaultProvider.
+                      Local brands: lmstudio | ollama | vllm (no API key needed;
+                      default endpoints auto-filled, auto-retry enabled).
   LOCAL_MODEL         Override defaultModel.
   LOCAL_THINKING      Override defaultThinkingLevel  (e.g. low, medium, high).
   LOCAL_LLM_BASE_URL  OpenAI-compatible base URL (LM Studio, Ollama, vLLM).
                       Forwarded to OPENAI_BASE_URL with a placeholder API key.
+  NO_COLOR            Disable ANSI colour output.
+
+Debugging:
+  Raw stdout/stderr of the last agent run is saved to state/local-last-run.log.
+  Exit codes: 0 success · 1 environment problem · 2 user error.
 
 Closed-world identity: thread IDs are allocated by this tool; unknown refs are
 rejected (no auto-create on typos). Aliases must start with a letter.`

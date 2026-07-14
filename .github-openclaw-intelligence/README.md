@@ -17,6 +17,9 @@ In addition, a **scheduled maintenance** run executes weekly (no `@` prefix and 
 originating issue) to perform low-risk housekeeping such as pruning stale session
 state. See [Triggers](#triggers) below.
 
+Prefer the terminal? The same agent also runs entirely on your machine — see
+[Local Chat (`bun run chat`)](#local-chat-bun-run-chat).
+
 ---
 
 ## Triggers
@@ -48,6 +51,109 @@ approximate — runs may be delayed by 5–60 minutes under load.
 
 ---
 
+## Local Chat (`bun run chat`)
+
+Talk to the **same agent from your terminal** — no GitHub Issues, no Actions, no `gh` CLI. The local runner (`lifecycle/local-chat.ts`) reuses the repository's identity (`AGENTS.md`), long-term memory (`MEMORY.md`), provider settings (`.pi/settings.json`), and skill packages verbatim, so local conversations behave identically to issue-driven ones — only the I/O surface changes.
+
+### Quick Start
+
+```bash
+# 1. Install Bun (once) — https://bun.sh
+#    Windows:  powershell -c "irm bun.sh/install.ps1 | iex"
+#    macOS/Linux:  curl -fsSL https://bun.sh/install | bash
+
+# 2. Install dependencies (once, from the repo root)
+cd .github-openclaw-intelligence
+bun install
+
+# 3. Provide an API key for the provider configured in .pi/settings.json
+#    (default provider: openai)
+export OPENAI_API_KEY="sk-..."        # bash/zsh
+#  or:  setx OPENAI_API_KEY "sk-..."  # PowerShell (new terminals)
+
+# 4. Chat
+bun run chat
+```
+
+`bun run chat` with no arguments opens an **interactive launcher**: it lists your existing threads and lets you resume one, create a new one, or quit. Inside the chat, type `/help` for the full in-chat command list and `/exit` (or Ctrl-C) to leave.
+
+**No API key?** The runner never crashes on a missing key — it walks you through your options: paste a key for the current session only, auto-scan your LAN for a running LM Studio server, or print instructions for setting the environment variable permanently.
+
+### CLI Reference
+
+| Command | Purpose |
+|---------|---------|
+| `bun run chat` | Interactive launcher (pick or create a thread) |
+| `bun run chat --new [--name <alias>]` | Create a new thread; prints its ID |
+| `bun run chat --thread <id\|alias> [prompt...]` | Continue a thread; REPL if no prompt given |
+| `bun run chat --list` | List all threads |
+| `bun run chat --rm <id\|alias>` | Delete a thread mapping (transcript preserved) |
+| `bun run chat --help` | Show usage help |
+
+**Threads** are the local analogue of GitHub issues: numbered conversations with optional aliases, stored as gitignored JSON under `state/threads/`. Thread identity is *closed-world* — IDs are only created by this tool, and unknown references are rejected rather than silently auto-created, so a typo can never fork your conversation.
+
+### In-Chat Commands
+
+Type `/help` inside the chat for the complete list. Highlights:
+
+| Command | Purpose |
+|---------|---------|
+| `/status` | Provider, model, thread, branch, memory, toggles |
+| `/model <id>` / `/model <provider>:<id>` | Switch model (and provider) mid-session |
+| `/provider <name>` | Switch provider (`lmstudio`, `ollama`, `vllm`, `openai`, …) |
+| `/list`, `/new`, `/switch`, `/rename` | Manage and hop between threads |
+| `/history`, `/export md` | Review or export the conversation |
+| `/retry`, `/again`, `/best-of <n>` | Re-run the last prompt (same/new/multiple threads) |
+| `/remember <text>`, `/memories [term]` | Append to / search the memory log |
+| `/cat`, `/md`, `/git`, `/diff`, `/run` | Inspect files and repo state without leaving chat |
+| `/multiline` | Paste multi-line input (blank line submits) |
+
+### Local Model Servers (no cloud key required)
+
+Point the chat at any OpenAI-compatible local server — LM Studio, Ollama, or vLLM — and no cloud credentials are needed:
+
+```bash
+# LM Studio (default endpoint http://localhost:1234/v1)
+LOCAL_PROVIDER=lmstudio LOCAL_MODEL=google/gemma-3-27b bun run chat
+
+# Ollama (default endpoint http://localhost:11434/v1)
+LOCAL_PROVIDER=ollama LOCAL_MODEL=llama3.1 bun run chat
+
+# Any other OpenAI-compatible server
+LOCAL_PROVIDER=openai LOCAL_MODEL=my-model \
+LOCAL_LLM_BASE_URL=http://192.168.1.50:8000/v1 bun run chat
+```
+
+Known local brands (`lmstudio`, `ollama`, `vllm`) get their default endpoint auto-filled and auto-retry enabled. A placeholder API key (`local`) is sent automatically, since OpenAI SDK clients require one even when the server ignores it.
+
+### Environment Overrides
+
+Highest precedence first: environment variables, then `.pi/settings.json`, then built-in defaults.
+
+| Variable | Effect |
+|----------|--------|
+| `LOCAL_PROVIDER` | Override `defaultProvider` from `.pi/settings.json` |
+| `LOCAL_MODEL` | Override `defaultModel` |
+| `LOCAL_THINKING` | Override `defaultThinkingLevel` (`low`, `medium`, `high`) |
+| `LOCAL_LLM_BASE_URL` | OpenAI-compatible base URL for a local/remote server |
+| `NO_COLOR` / `FORCE_COLOR` | Disable / force ANSI colour output |
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `openclaw binary not found` | Run `bun install` inside `.github-openclaw-intelligence/` |
+| `Integrity check failed for tarball` during install | `bun pm cache rm && bun install` |
+| Missing API key prompt | Set the provider's env var (see [Supported Providers](#supported-providers)), or choose the LM Studio scan option |
+| Empty / garbled reply | Inspect the raw streams saved at `state/local-last-run.log` |
+| Local server not responding | Verify the server is running and `LOCAL_LLM_BASE_URL` matches its endpoint |
+
+Exit codes: `0` success · `1` environment problem (missing key/binary) · `2` user error (unknown thread, invalid alias).
+
+All local-chat state (threads, transcripts, runtime config, logs) lives under the gitignored `state/` directory — local runs never touch committed files.
+
+---
+
 ## Project Structure
 
 ```
@@ -74,17 +180,21 @@ approximate — runs may be delayed by 5–60 minutes under load.
 │   ├── OPENCLAW-AGENTS.md         # Default AGENTS.md for fresh installs
 │   └── settings.json              # Default .pi/settings.json
 ├── lifecycle/
-│   ├── agent.ts                   # Core orchestrator
+│   ├── agent.ts                   # Core orchestrator (GitHub Actions entry point)
 │   ├── command-parser.ts          # Slash command parser (openclaw CLI registry)
+│   ├── command-parser.test.ts     # Command parser tests
 │   ├── enabled.ts                 # Fail-closed sentinel guard
+│   ├── local-chat.ts              # Local terminal chat runner (`bun run chat`)
 │   ├── preflight.ts               # Pre-run config and structural validation
-│   └── trust-level.ts             # Trust-level resolution per actor
+│   ├── trust-level.ts             # Trust-level resolution per actor
+│   └── trust-level.test.ts        # Trust-level tests
 ├── package.json
 ├── public-fabric/                 # GitHub Pages content
 ├── skills/                        # Runtime-linked skills (symlinks to bundled)
 └── state/
     ├── agents/main/sessions/      # Conversation transcripts (JSONL)
     ├── issues/                    # Issue-to-session mappings
+    ├── threads/                   # Local-chat thread records (gitignored)
     └── memory.log                 # Append-only long-term memory
 ```
 
