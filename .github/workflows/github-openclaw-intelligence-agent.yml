@@ -144,19 +144,20 @@ jobs:
           unzip -q /tmp/template.zip -d /tmp/template
 
           EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
+          TEMPLATE_TARGET="$EXTRACTED/$TARGET"
 
           missing=false
           for required in \
-            "$TARGET/lifecycle/local-chat.ts" \
-            "$TARGET/package.json" \
-            "$TARGET/bun.lock"; do
-            if [ ! -f "$EXTRACTED/$required" ]; then
+            "lifecycle/local-chat.ts" \
+            "package.json" \
+            "bun.lock"; do
+            if [ ! -f "$TEMPLATE_TARGET/$required" ]; then
               echo "::error::Template is missing required local chat file: $required"
               missing=true
             fi
           done
 
-          if ! grep -q '"chat"[[:space:]]*:[[:space:]]*"bun run lifecycle/local-chat.ts"' "$EXTRACTED/$TARGET/package.json"; then
+          if ! grep -q '"chat"[[:space:]]*:[[:space:]]*"bun run lifecycle/local-chat.ts"' "$TEMPLATE_TARGET/package.json"; then
             echo "::error::Template package.json is missing the local chat script."
             missing=true
           fi
@@ -165,8 +166,8 @@ jobs:
             exit 1
           fi
 
-          rm -rf "$EXTRACTED/$TARGET/node_modules"
-          rm -rf "$EXTRACTED/$TARGET/docs/analysis"
+          rm -rf "$TEMPLATE_TARGET/node_modules"
+          rm -rf "$TEMPLATE_TARGET/docs/analysis"
 
           if [ "$ACTION" = "upgrade" ]; then
             BACKUP="/tmp/oci-backup"
@@ -178,7 +179,7 @@ jobs:
             [ -d "$TARGET/config" ]    && cp -R "$TARGET/config" "$BACKUP/config"
 
             rm -rf "$TARGET"
-            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+            cp -R "$TEMPLATE_TARGET" "$TARGET"
 
             rm -rf "$TARGET/state"
 
@@ -193,7 +194,7 @@ jobs:
             [ -d "$BACKUP/state" ]     && cp -R "$BACKUP/state" "$TARGET/state"
             [ -d "$BACKUP/config" ]    && cp -R "$BACKUP/config" "$TARGET/config"
           else
-            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+            cp -R "$TEMPLATE_TARGET" "$TARGET"
 
             rm -rf "$TARGET/state"
 
