@@ -31,3 +31,11 @@ node_modules/
 /USER.md
 /.openclaw/
 /memory/
+
+# ── Local chat (bun run chat) artifacts ────────────────────────────────────────
+# Threads, transcripts, and runtime config produced by lifecycle/local-chat.ts
+# are developer-local conversations and must never be committed.
+.github-openclaw-intelligence/state/threads/
+.github-openclaw-intelligence/state/local-last-run.log
+.github-openclaw-intelligence/state/local-runtime-config.json
+.github-openclaw-intelligence/state/agents/main/sessions/local-*
