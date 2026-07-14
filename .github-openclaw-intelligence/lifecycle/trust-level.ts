@@ -23,6 +23,37 @@ export interface TrustPolicy {
   untrustedBehavior?: "read-only-response" | "block";
 }
 
+// ─── Permission hierarchy ─────────────────────────────────────────────────────
+
+/**
+ * GitHub repository permission levels ranked from lowest to highest.  Used so
+ * that a higher permission always satisfies a lower role requirement (for
+ * example an `admin` actor satisfies a `"write"` entry in
+ * `semiTrustedRoles`).  Without this, older settings.json files that list
+ * only `["write"]` would lock out repository admins and maintainers.
+ */
+const PERMISSION_RANK: Record<string, number> = {
+  none: 0,
+  read: 1,
+  triage: 2,
+  write: 3,
+  maintain: 4,
+  admin: 5,
+};
+
+/**
+ * Check whether an actor's permission satisfies a required role, taking the
+ * GitHub permission hierarchy into account.  Unknown permission strings only
+ * match by exact equality (fail closed).
+ */
+function permissionSatisfiesRole(actorPermission: string, role: string): boolean {
+  if (actorPermission === role) return true;
+  const actorRank = PERMISSION_RANK[actorPermission];
+  const roleRank = PERMISSION_RANK[role];
+  if (actorRank === undefined || roleRank === undefined) return false;
+  return actorRank >= roleRank;
+}
+
 // ─── Resolution ───────────────────────────────────────────────────────────────
 
 /**
@@ -47,8 +78,12 @@ export function resolveTrustLevel(
   // 1. Explicit trusted users list takes highest priority.
   if (trustPolicy.trustedUsers?.includes(actor)) return "trusted";
 
-  // 2. Check if the actor's permission matches a semi-trusted role.
-  if (trustPolicy.semiTrustedRoles?.includes(actorPermission)) return "semi-trusted";
+  // 2. Check if the actor's permission satisfies any semi-trusted role.
+  //    Higher permissions satisfy lower role requirements (admin ≥ maintain ≥
+  //    write), so listing "write" covers maintainers and admins too.
+  if (trustPolicy.semiTrustedRoles?.some((role) => permissionSatisfiesRole(actorPermission, role))) {
+    return "semi-trusted";
+  }
 
   // 3. Everything else is untrusted.
   return "untrusted";
