@@ -79,7 +79,7 @@ if (existsSync(packageJsonPath)) {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     const chatScript = packageJson?.scripts?.chat;
     if (typeof chatScript !== "string" || !chatScript.includes(localChatLabel)) {
-      errors.push(`package.json: "chat" script must reference ${localChatLabel}`);
+      errors.push(`package.json: "chat" script must reference ${localChatLabel} (e.g. "bun run ${localChatLabel}")`);
     }
   } catch (err) {
     errors.push(`package.json: invalid JSON (${err instanceof Error ? err.message : String(err)})`);

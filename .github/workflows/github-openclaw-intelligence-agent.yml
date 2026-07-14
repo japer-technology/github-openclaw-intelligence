@@ -159,10 +159,13 @@ jobs:
           done
 
           CHAT_SCRIPT=$(jq -r '.scripts.chat // ""' "$TEMPLATE_TARGET/package.json")
-          if [[ -z "$CHAT_SCRIPT" || "$CHAT_SCRIPT" != *"$LOCAL_CHAT_ENTRY"* ]]; then
-            echo "::error::Template package.json chat script must reference $LOCAL_CHAT_ENTRY."
-            missing=true
-          fi
+          case "$CHAT_SCRIPT" in
+            *"$LOCAL_CHAT_ENTRY"*) ;;
+            *)
+              echo "::error::Template package.json chat script must reference $LOCAL_CHAT_ENTRY."
+              missing=true
+              ;;
+          esac
 
           if [ "$missing" = true ]; then
             exit 1
