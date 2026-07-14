@@ -145,11 +145,11 @@ jobs:
 
           EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
           TEMPLATE_TARGET="$EXTRACTED/$TARGET"
-          LOCAL_CHAT_SCRIPT="bun run lifecycle/local-chat.ts"
+          LOCAL_CHAT_ENTRY="lifecycle/local-chat.ts"
 
           missing=false
           for required in \
-            "lifecycle/local-chat.ts" \
+            "$LOCAL_CHAT_ENTRY" \
             "package.json" \
             "bun.lock"; do
             if [ ! -f "$TEMPLATE_TARGET/$required" ]; then
@@ -158,8 +158,9 @@ jobs:
             fi
           done
 
-          if [ "$(jq -r '.scripts.chat // ""' "$TEMPLATE_TARGET/package.json")" != "$LOCAL_CHAT_SCRIPT" ]; then
-            echo "::error::Template package.json is missing the local chat script."
+          CHAT_SCRIPT=$(jq -r '.scripts.chat // ""' "$TEMPLATE_TARGET/package.json")
+          if [[ -z "$CHAT_SCRIPT" || "$CHAT_SCRIPT" != *"$LOCAL_CHAT_ENTRY"* ]]; then
+            echo "::error::Template package.json chat script must reference $LOCAL_CHAT_ENTRY."
             missing=true
           fi
 

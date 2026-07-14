@@ -50,7 +50,7 @@ const configDir = resolve(openclawDir, "config");
 const piSettingsPath = resolve(openclawDir, ".pi", "settings.json");
 const schemaPath = resolve(configDir, "settings.schema.json");
 const packageJsonPath = resolve(openclawDir, "package.json");
-const expectedChatScript = "bun run lifecycle/local-chat.ts";
+const localChatLabel = "lifecycle/local-chat.ts";
 
 // ─── Required files ───────────────────────────────────────────────────────────
 const requiredFiles: { path: string; label: string }[] = [
@@ -58,7 +58,7 @@ const requiredFiles: { path: string; label: string }[] = [
   { path: piSettingsPath, label: ".pi/settings.json" },
   { path: resolve(openclawDir, "lifecycle", "agent.ts"), label: "lifecycle/agent.ts" },
   { path: resolve(openclawDir, "lifecycle", "enabled.ts"), label: "lifecycle/enabled.ts" },
-  { path: resolve(openclawDir, "lifecycle", "local-chat.ts"), label: "lifecycle/local-chat.ts" },
+  { path: resolve(openclawDir, localChatLabel), label: localChatLabel },
   { path: resolve(openclawDir, "bun.lock"), label: "bun.lock" },
   { path: packageJsonPath, label: "package.json" },
 ];
@@ -78,8 +78,8 @@ if (existsSync(packageJsonPath)) {
   try {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
     const chatScript = packageJson?.scripts?.chat;
-    if (chatScript !== expectedChatScript) {
-      errors.push('package.json: missing required "chat" script for lifecycle/local-chat.ts');
+    if (typeof chatScript !== "string" || !chatScript.includes(localChatLabel)) {
+      errors.push(`package.json: "chat" script must reference ${localChatLabel}`);
     }
   } catch (err) {
     errors.push(`package.json: invalid JSON (${err instanceof Error ? err.message : String(err)})`);
