@@ -1070,6 +1070,107 @@ function extractAgentTextFromRaw(raw: string): string | null {
   return null;
 }
 
+// ─── Provider error extraction ───────────────────────────────────────────────
+// When openclaw exits non-zero, the provider's original error message (e.g.
+// LM Studio rejecting a request because the model's context length is too
+// small) is buried in the embedded-agent logs on stderr.  Surface it so the
+// user sees the actual reason instead of only a generic exit-code message.
+
+type ProviderErrorInfo = { detail: string | null; status: number | null };
+
+/**
+ * Pull the most specific provider error out of openclaw's raw output.
+ * openclaw's embedded-agent logs carry the provider's original message as
+ * `rawError=<status> <message>`; fall back to the `FailoverError:` summary.
+ */
+function extractProviderError(raw: string): ProviderErrorInfo {
+  let detail: string | null = null;
+  let status: number | null = null;
+
+  const rawErrMatches = raw.match(/rawError=([^\n]+)/g);
+  if (rawErrMatches && rawErrMatches.length > 0) {
+    detail = rawErrMatches[rawErrMatches.length - 1].slice("rawError=".length).trim();
+  }
+  if (!detail) {
+    const failover = raw.match(/FailoverError: ([^\n]+)/);
+    if (failover) detail = failover[1].trim();
+  }
+
+  const statusFromDetail = detail?.match(/^(\d{3})\b/);
+  if (statusFromDetail) {
+    status = parseInt(statusFromDetail[1], 10);
+  } else {
+    const st = raw.match(/\bstatus=(\d{3})\b/);
+    if (st) status = parseInt(st[1], 10);
+  }
+  return { detail, status };
+}
+
+/** Map a known provider error message to an actionable next step. */
+function providerErrorHint(detail: string | null): string | null {
+  if (!detail) return null;
+  if (/context length|tokens to keep|context window|maximum context/i.test(detail)) {
+    return (
+      "The loaded model's context length is too small for the agent's system prompt. " +
+      "In LM Studio, reload the model with a larger context length (16k+ recommended), " +
+      "then try again."
+    );
+  }
+  if (/tool/i.test(detail) && /support|unsupported|reject|does not|cannot/i.test(detail)) {
+    return (
+      "The loaded model (or its chat template) may not support tool calls, which the " +
+      "agent requires. Load a tools-capable model in LM Studio and try again."
+    );
+  }
+  if (/\b401\b|unauthorized|api key|authentication/i.test(detail)) {
+    return (
+      "The local server rejected the placeholder API key. If authentication is enabled " +
+      "on the server, set its API token in your environment before starting the chat."
+    );
+  }
+  return null;
+}
+
+/**
+ * True when the provider rejected the request deterministically (HTTP 4xx,
+ * excluding transient 408/429) — retrying the identical request cannot succeed.
+ */
+function isDeterministicProviderError(info: ProviderErrorInfo): boolean {
+  return (
+    info.status !== null &&
+    info.status >= 400 && info.status < 500 &&
+    info.status !== 408 && info.status !== 429
+  );
+}
+
+// Marker openclaw embeds in the reply payload when the assistant turn failed
+// before producing content (e.g. the provider rejected the request) but the
+// process still exited 0 on a resumed session.
+const TURN_FAILURE_MARKER = "[assistant turn failed before producing content]";
+
+/**
+ * Build a turn-failure Error carrying the provider's original message, an
+ * actionable hint when the failure is recognised, and a pointer to the raw
+ * log.  Also reports whether the failure is deterministic (retry-proof).
+ */
+function buildTurnFailureError(
+  headline: string,
+  rawOutput: string,
+  fallbackDetail?: string,
+): { err: Error; deterministic: boolean } {
+  const provErr = extractProviderError(rawOutput);
+  const hint = providerErrorHint(provErr.detail);
+  const err = new Error(
+    headline +
+    (provErr.detail
+      ? `\nProvider error: ${provErr.detail}`
+      : (fallbackDetail ? `\n${fallbackDetail}` : "")) +
+    (hint ? `\nHint: ${hint}` : "") +
+    `\nRaw output saved to: ${lastRunRawPath}`
+  );
+  return { err, deterministic: isDeterministicProviderError(provErr) };
+}
+
 /**
  * Execute one turn of conversation against openclaw for the given thread.
  *
@@ -1165,11 +1266,16 @@ async function runTurn(
       // SIGTERM (143 = 128 + 15) can occur when the runtime is torn down
       // after output was produced — treat it like agent.ts does (success).
       if (exitCode !== 0 && exitCode !== 143) {
-        lastErr = new Error(
-          `openclaw exited with code ${exitCode} (provider: ${rt.provider}, model: ${rt.model}). ` +
-          `This may indicate an invalid model ID, an unreachable local server, or a provider error.`
+        const { err, deterministic } = buildTurnFailureError(
+          `openclaw exited with code ${exitCode} (provider: ${rt.provider}, model: ${rt.model}).`,
+          stderrRaw + "\n" + stdoutRaw,
+          "This may indicate an invalid model ID, an unreachable local server, or a provider error.",
         );
-        if (attempt < maxAttempts) {
+        lastErr = err;
+        // A deterministic 4xx rejection (bad request / context overflow /
+        // unsupported payload) will fail identically on every attempt —
+        // surface the error immediately instead of burning retries.
+        if (attempt < maxAttempts && !deterministic) {
           console.log("  " + c.yellow(`⟳ Retry ${attempt + 1}/${maxAttempts} after exit code ${exitCode}…`));
           continue;
         }
@@ -1179,6 +1285,23 @@ async function runTurn(
       // The --json envelope normally lands on stderr (routeLogsToStderr), but
       // try stdout first in case a future openclaw version fixes this.
       let reply = extractAgentTextFromRaw(stdoutRaw) ?? extractAgentTextFromRaw(stderrRaw) ?? "";
+
+      // On resumed sessions openclaw can exit 0 while the assistant turn
+      // actually failed (the payload carries a failure marker and may echo
+      // stale text from the previous turn) — treat it as a failed turn.
+      if (reply.includes(TURN_FAILURE_MARKER)) {
+        const { err, deterministic } = buildTurnFailureError(
+          `The assistant turn failed before producing content (provider: ${rt.provider}, model: ${rt.model}).`,
+          stderrRaw + "\n" + stdoutRaw,
+        );
+        lastErr = err;
+        if (attempt < maxAttempts && !deterministic) {
+          console.log("  " + c.yellow(`⟳ Retry ${attempt + 1}/${maxAttempts} after failed turn…`));
+          continue;
+        }
+        throw lastErr;
+      }
+
       if (!reply) {
         // Fall back to the session transcript's final assistant message.
         const transcript = threadSessionPath(t.id);
