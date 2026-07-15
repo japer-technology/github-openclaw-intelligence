@@ -601,6 +601,7 @@ Environment overrides (highest precedence):
   LOCAL_THINKING      Override defaultThinkingLevel  (e.g. low, medium, high).
   LOCAL_LLM_BASE_URL  OpenAI-compatible base URL (LM Studio, Ollama, vLLM).
                       Forwarded to OPENAI_BASE_URL with a placeholder API key.
+  OPENCLAW_NODE        Node.js executable for OpenClaw (default: node from PATH).
   NO_COLOR            Disable ANSI colour output.
 
 Debugging:
@@ -1213,7 +1214,11 @@ async function runTurn(
     try {
       // Invoke the package entry point with Node explicitly. Bun-generated
       // Windows .exe shims run under Bun, which does not provide node:sqlite.
-      const proc = Bun.spawn(buildOpenclawCommand(rt.openclawEntry, args), {
+      const proc = Bun.spawn(buildOpenclawCommand(
+        rt.openclawEntry,
+        args,
+        process.env.OPENCLAW_NODE || "node",
+      ), {
         cwd: repoRoot,
         // Pass env explicitly so runtime mutations (e.g. OPENAI_BASE_URL set
         // by buildLocalProviderModels) reliably reach the child on every
@@ -2136,7 +2141,7 @@ async function guideMissingApiKey(cfg: RuntimeCfg): Promise<RuntimeCfg | null> {
 /** Friendly handler for a missing OpenClaw package entry point. */
 function guideOpenclawNotInstalled(entryPath: string): void {
   say.error(
-    "The `openclaw` binary isn't installed yet.",
+    "The `openclaw` package isn't installed yet.",
     "This project uses the `openclaw` package under the hood, " +
     "which is added when you run `bun install` in the .github-openclaw-intelligence/ folder."
   );

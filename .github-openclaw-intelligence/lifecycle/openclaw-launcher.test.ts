@@ -12,4 +12,12 @@ describe("OpenClaw launcher", () => {
       "--version",
     ]);
   });
+
+  test("supports an explicit Node executable", () => {
+    expect(buildOpenclawCommand("openclaw.mjs", ["--version"], "C:\\Node\\node.exe")).toEqual([
+      "C:\\Node\\node.exe",
+      "openclaw.mjs",
+      "--version",
+    ]);
+  });
 });

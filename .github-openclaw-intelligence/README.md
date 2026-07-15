@@ -140,6 +140,7 @@ Highest precedence first: environment variables, then `.pi/settings.json`, then 
 | `LOCAL_MODEL` | Override `defaultModel` |
 | `LOCAL_THINKING` | Override `defaultThinkingLevel` (`low`, `medium`, `high`) |
 | `LOCAL_LLM_BASE_URL` | OpenAI-compatible base URL for a local/remote server |
+| `OPENCLAW_NODE` | Node.js executable used to launch OpenClaw (defaults to `node` from `PATH`) |
 | `NO_COLOR` / `FORCE_COLOR` | Disable / force ANSI colour output |
 
 ### Troubleshooting

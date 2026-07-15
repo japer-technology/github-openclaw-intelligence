@@ -7,6 +7,6 @@ export function locateOpenclawEntry(baseDir: string): string {
   throw new Error(`openclaw entry point not found: ${entry}`);
 }
 
-export function buildOpenclawCommand(entry: string, args: string[]): string[] {
-  return ["node", entry, ...args];
+export function buildOpenclawCommand(entry: string, args: string[], nodeExecutable = "node"): string[] {
+  return [nodeExecutable, entry, ...args];
 }
