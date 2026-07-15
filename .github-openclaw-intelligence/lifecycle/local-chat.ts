@@ -65,7 +65,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * DEPENDENCIES
  * ─────────────────────────────────────────────────────────────────────────────
- * - `bun`                         (runtime)
+ * - `bun`                         (local chat runtime and package runner)
+ * - `node`                        (OpenClaw runtime; required for node:sqlite)
  * - `openclaw`                    (installed by `bun install`)
  * - `marked`, `marked-terminal`   (terminal Markdown rendering)
  * - `ansi-regex`                  (ANSI stripping before rendering)
@@ -83,6 +84,7 @@ import { execFileSync, execSync } from "child_process";
 import { marked } from "marked";
 import { markedTerminal } from "marked-terminal";
 import ansiRegex from "ansi-regex";
+import { buildOpenclawCommand, locateOpenclawEntry } from "./openclaw-launcher";
 
 // marked-terminal's return type does not perfectly align with marked's
 // MarkedExtension interface; the cast is the standard workaround.
@@ -854,21 +856,6 @@ function buildLocalProviderModels(provider: string, model: string): Record<strin
   };
 }
 
-// ─── openclaw binary location ─────────────────────────────────────────────────
-
-function locateOpenclawBin(): string {
-  const base = resolve(openclawDir, "node_modules", ".bin", "openclaw");
-  // Cover both `.cmd` (npm-shim) and `.exe` (Bun-shim) on Windows.
-  const candidates = process.platform === "win32"
-    ? [base + ".exe", base + ".cmd", base]
-    : [base];
-  for (const c of candidates) if (existsSync(c)) return c;
-  throw new Error(
-    `openclaw binary not found in any of: ${candidates.join(", ")}\n` +
-    `Run "bun install" inside .github-openclaw-intelligence/ first.`
-  );
-}
-
 // ─── Subprocess lifecycle ─────────────────────────────────────────────────────
 // Track the active `openclaw` child so we can terminate it on Ctrl+C / EPIPE /
 // SIGTERM rather than leaving orphan processes streaming JSONL into a dead
@@ -904,7 +891,7 @@ type RuntimeState = {
   verbose: boolean;
   autoRetry: boolean;
   autoRetryMax: number;
-  openclawBin: string;
+  openclawEntry: string;
 };
 
 // ─── One agent turn ───────────────────────────────────────────────────────────
@@ -1224,7 +1211,9 @@ async function runTurn(
     ];
 
     try {
-      const proc = Bun.spawn([rt.openclawBin, ...args], {
+      // Invoke the package entry point with Node explicitly. Bun-generated
+      // Windows .exe shims run under Bun, which does not provide node:sqlite.
+      const proc = Bun.spawn(buildOpenclawCommand(rt.openclawEntry, args), {
         cwd: repoRoot,
         // Pass env explicitly so runtime mutations (e.g. OPENAI_BASE_URL set
         // by buildLocalProviderModels) reliably reach the child on every
@@ -2144,8 +2133,8 @@ async function guideMissingApiKey(cfg: RuntimeCfg): Promise<RuntimeCfg | null> {
   }
 }
 
-/** Friendly handler for missing openclaw binary. */
-function guideOpenclawNotInstalled(triedPaths: string[]): void {
+/** Friendly handler for a missing OpenClaw package entry point. */
+function guideOpenclawNotInstalled(entryPath: string): void {
   say.error(
     "The `openclaw` binary isn't installed yet.",
     "This project uses the `openclaw` package under the hood, " +
@@ -2155,8 +2144,8 @@ function guideOpenclawNotInstalled(triedPaths: string[]): void {
   console.log("      " + c.gray("cd .github-openclaw-intelligence"));
   console.log("      " + c.gray("bun install"));
   console.log("");
-  console.log("    " + c.dim("Checked these locations:"));
-  for (const p of triedPaths) console.log("      " + c.dim(p));
+  console.log("    " + c.dim("Checked this location:"));
+  console.log("      " + c.dim(entryPath));
   console.log("");
 }
 
@@ -2217,17 +2206,15 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── Locate openclaw binary; guide the user if it's missing ──────────────
+  // ── Locate OpenClaw's Node entry point; guide the user if it's missing ──
   // Allocation-only --new returns above and does not need runtime dependencies.
-  let openclawBin: string;
+  let openclawEntry: string;
   try {
-    openclawBin = locateOpenclawBin();
+    openclawEntry = locateOpenclawEntry(openclawDir);
   } catch (err) {
-    // Extract the candidate list out of the throw message for the guide.
     const msg = (err as Error).message;
-    const m = msg.match(/not found in any of: ([^\n]+)/);
-    const candidates = m ? m[1].split(", ") : [];
-    guideOpenclawNotInstalled(candidates);
+    const entryPath = msg.slice(msg.indexOf(":") + 1).trim();
+    guideOpenclawNotInstalled(entryPath);
     process.exitCode = 1;
     return;
   }
@@ -2239,7 +2226,7 @@ async function main(): Promise<void> {
     showTiming: false, verbose: false,
     autoRetry: isLocalProvider(cfg.provider),
     autoRetryMax: 3,
-    openclawBin,
+    openclawEntry,
   };
 
   // For local providers, resolve the endpoint env vars up front so the REPL
