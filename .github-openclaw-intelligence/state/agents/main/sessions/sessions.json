@@ -1,15 +1,15 @@
 {
   "agent:main:explicit:local-1": {
     "sessionId": "local-1",
-    "updatedAt": 1784090550317,
+    "updatedAt": 1784084826553,
     "sessionStartedAt": 1784084290357,
     "skillsSnapshot": {
       "prompt": "",
       "skills": [],
-      "version": 1784090547454,
+      "version": 1784084824068,
       "promptFormatVersion": 1
     },
-    "lastInteractionAt": 1784090550309,
+    "lastInteractionAt": 1784084826546,
     "sessionFile": "/home/runner/work/github-openclaw-intelligence/github-openclaw-intelligence/.github-openclaw-intelligence/state/agents/main/sessions/local-1.jsonl",
     "contextTokens": 200000,
     "modelProvider": "lmstudio",
@@ -18,7 +18,7 @@
     "abortedLastRun": false,
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1784090549987,
+      "generatedAt": 1784084826215,
       "sessionId": "local-1",
       "sessionKey": "agent:main:explicit:local-1",
       "provider": "lmstudio",
@@ -417,34 +417,34 @@
         ]
       },
       "currentTurn": {
-        "promptChars": 5,
+        "promptChars": 8,
         "runtimeContextChars": 0
       }
     },
     "contextBudgetStatus": {
       "schemaVersion": 1,
       "source": "pre-prompt-estimate",
-      "updatedAt": 1784090550139,
+      "updatedAt": 1784084826348,
       "provider": "lmstudio",
       "model": "google/gemma-4-26b-a4b-qat",
       "route": "fits",
       "shouldCompact": false,
-      "estimatedPromptTokens": 5006,
+      "estimatedPromptTokens": 5224,
       "contextTokenBudget": 200000,
       "promptBudgetBeforeReserve": 180000,
       "reserveTokens": 20000,
       "effectiveReserveTokens": 20000,
-      "remainingPromptBudgetTokens": 174994,
+      "remainingPromptBudgetTokens": 174776,
       "overflowTokens": 0,
       "toolResultReducibleChars": 0,
-      "messageCount": 0,
-      "unwindowedMessageCount": 0,
+      "messageCount": 8,
+      "unwindowedMessageCount": 8,
       "sessionId": "local-1"
     },
-    "inputTokens": 10,
-    "outputTokens": 2,
-    "totalTokens": 10,
-    "totalTokensFresh": true,
+    "inputTokens": 1,
+    "outputTokens": 5,
+    "totalTokens": 1,
+    "totalTokensFresh": false,
     "cacheRead": 0,
     "cacheWrite": 0,
     "estimatedCostUsd": 0
