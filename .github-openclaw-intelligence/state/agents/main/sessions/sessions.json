@@ -451,15 +451,15 @@
   },
   "agent:main:explicit:local-2": {
     "sessionId": "local-2",
-    "updatedAt": 1784084411084,
+    "updatedAt": 1784090717228,
     "sessionStartedAt": 1784084409446,
     "skillsSnapshot": {
       "prompt": "",
       "skills": [],
-      "version": 1784084408524,
+      "version": 1784090714181,
       "promptFormatVersion": 1
     },
-    "lastInteractionAt": 1784084411075,
+    "lastInteractionAt": 1784090717218,
     "sessionFile": "/home/runner/work/github-openclaw-intelligence/github-openclaw-intelligence/.github-openclaw-intelligence/state/agents/main/sessions/local-2.jsonl",
     "contextTokens": 200000,
     "modelProvider": "lmstudio",
@@ -468,7 +468,7 @@
     "abortedLastRun": false,
     "systemPromptReport": {
       "source": "run",
-      "generatedAt": 1784084410765,
+      "generatedAt": 1784090716933,
       "sessionId": "local-2",
       "sessionKey": "agent:main:explicit:local-2",
       "provider": "lmstudio",
@@ -488,10 +488,10 @@
         "sandboxed": false
       },
       "systemPrompt": {
-        "chars": 16554,
-        "hash": "2afa5fe2ae4d3854f83f66369b11c95fb26268b8e2e000f17e052f29ee40a55c",
+        "chars": 14867,
+        "hash": "37e82891870c82049f6c5bd46da1be2468d8807cfaeb8a2413e6c602c2bfc3cc",
         "projectContextChars": 3550,
-        "nonProjectContextChars": 13004
+        "nonProjectContextChars": 11317
       },
       "injectedWorkspaceFiles": [
         {
@@ -566,12 +566,12 @@
       },
       "tools": {
         "listChars": 0,
-        "schemaChars": 40362,
+        "schemaChars": 42352,
         "entries": [
           {
             "name": "read",
-            "summaryChars": 298,
-            "summaryHash": "f8a1d7cf1ecfe02b1b5865c93387e6a5891e5079117b4fe18614b6f912521727",
+            "summaryChars": 303,
+            "summaryHash": "b15dd29794ef5562ddee30a6282387ee7b40b9806c10ae2616daf75514ddc1f6",
             "schemaChars": 304,
             "schemaHash": "134f19bcabe3e29d63c5cebb38f1d2556759fd08adad6bc90a4b4d3cd1fb8441",
             "propertiesCount": 3
@@ -604,8 +604,8 @@
             "name": "exec",
             "summaryChars": 539,
             "summaryHash": "4825198988fbfa8ebf5c2a8fbe3946da0be639b1e3b737ceaa4364195bba3f04",
-            "schemaChars": 1283,
-            "schemaHash": "2608ea36cf51376859b7204cda1bf1a2507134eb542097b9e8dbc8af617f216b",
+            "schemaChars": 1332,
+            "schemaHash": "49dcb29ee9f7016cd248f40cfb44508aac4d6a67d4c9acb52cbd08ad3e3ae893",
             "propertiesCount": 12
           },
           {
@@ -626,18 +626,18 @@
           },
           {
             "name": "cron",
-            "summaryChars": 3820,
-            "summaryHash": "d3bc0032e9c0ba71e5983ee4d06bd4b70ea5170dcb5d85fbff1bd71f01b070f4",
-            "schemaChars": 8705,
-            "schemaHash": "830efafdf26c1cd1c32452d2baea3b8fc0c7b7b7269d9ab0a503aded48f88ab1",
+            "summaryChars": 4062,
+            "summaryHash": "7038f1b185a7cdf7a40525eeca91ed39dfd7bbaf85e89027896af264de54b4d9",
+            "schemaChars": 9606,
+            "schemaHash": "22220ca8ac2b96a6957b1363964bb4c7f17c7b3ec14026c1484d6b6728542714",
             "propertiesCount": 15
           },
           {
             "name": "message",
             "summaryChars": 71,
             "summaryHash": "e43fe566f2d93be0d540da64d2a80a6e1a868757fe2fb49fa38e69fccf9fd4b0",
-            "schemaChars": 5710,
-            "schemaHash": "b11a54a8bc235a40b4206dfec1e04170e0cbc7af342f7921676a8ced3a4cbb82",
+            "schemaChars": 5880,
+            "schemaHash": "ffca049e7cdc61f71334a173d57e276aaa34337894751f28b6b1d5a920d979db",
             "propertiesCount": 106
           },
           {
@@ -652,8 +652,8 @@
             "name": "image_generate",
             "summaryChars": 468,
             "summaryHash": "d093313d17509b72795516c6ad7c92a9f1e8c7943239d570fd81347dc2557424",
-            "schemaChars": 2264,
-            "schemaHash": "1ff0d91a2a16769e27d71721f3307059944254c0567f9db718fe90e1665b088d",
+            "schemaChars": 2302,
+            "schemaHash": "72c0dd8f7fa93bd4fb30954832ca63e58ab3c98201b2fa7568918e6d5d86c8b1",
             "propertiesCount": 16
           },
           {
@@ -708,25 +708,25 @@
             "name": "skill_workshop",
             "summaryChars": 171,
             "summaryHash": "577c1d2b8f56bf3e9dd5e00463bbce8b8bf4cf201da9b21b588dcaa3bc6ed8cf",
-            "schemaChars": 2273,
-            "schemaHash": "15481d6889a320a46728ee32304f0a2b510c0bcf77d445052c1ef2fa5dd5368b",
+            "schemaChars": 2298,
+            "schemaHash": "a15f720240f6f8fed5b136844a6868388a4c35170b419a89c570bc560dc27090",
             "propertiesCount": 13
           },
           {
             "name": "sessions_list",
-            "summaryChars": 135,
-            "summaryHash": "c7e411ae02e3adff5504aaee48f02d262a8abb9152558a3172aae289e3b05faf",
-            "schemaChars": 435,
-            "schemaHash": "c29c6b82c36a2d95a88c8944f129929b2621ee2af6d17b2ab101d4d7e9633d89",
-            "propertiesCount": 9
+            "summaryChars": 150,
+            "summaryHash": "6991b34a692cbbecc50302184503776bf8d7317b336d649fcd9373beab5473dc",
+            "schemaChars": 465,
+            "schemaHash": "89e377fd8694a3b81a5d72a0e9536e1770a127aff3ee539cef01c5af01e59129",
+            "propertiesCount": 10
           },
           {
             "name": "sessions_history",
-            "summaryChars": 117,
-            "summaryHash": "f5d45b76f11a8ac63cc45d456fb6f675f0b1a2e191feb9671924cb5830058f03",
-            "schemaChars": 162,
-            "schemaHash": "ac33b8af2252262afe479236046f5a04bc018f1fcf24d1a8bf32743f0e867598",
-            "propertiesCount": 3
+            "summaryChars": 149,
+            "summaryHash": "09b418c8da696b361c021f66705dab0215a613f6c18a9722767f6129907e0dcd",
+            "schemaChars": 202,
+            "schemaHash": "7c48bf270e608aa5c167ec15d571b536c626aed56e88d6e760fcf0802bb75cc4",
+            "propertiesCount": 4
           },
           {
             "name": "sessions_send",
@@ -802,11 +802,11 @@
           },
           {
             "name": "browser",
-            "summaryChars": 1537,
-            "summaryHash": "8a4aab8d6a66131c4f065bc2672af8fbcc19555e55fb4fbb1c24261d02e63e28",
-            "schemaChars": 3570,
-            "schemaHash": "fcbd681856651c4d2817a3c0f9786a321a20a50a6c117866bf08d4df6f40486a",
-            "propertiesCount": 53
+            "summaryChars": 1546,
+            "summaryHash": "949fb149e0a069b95d9a8e5c89f1ee01ec31390c598611ebd9e4dbaf7c3d010c",
+            "schemaChars": 3624,
+            "schemaHash": "6a8fab5fa583c1d2cb2a6634de6b1736d835f3ebfdcd24833b5f672b7bd30376",
+            "propertiesCount": 54
           },
           {
             "name": "canvas",
@@ -863,41 +863,50 @@
             "schemaChars": 241,
             "schemaHash": "78f5d58460a82f9104deebad2f1873a8cde05d1ce7328b3ba4da6e994653e70a",
             "propertiesCount": 4
+          },
+          {
+            "name": "node_inference",
+            "summaryChars": 206,
+            "summaryHash": "49c5e7e56c65dee8e708065c58240d64d8067dc07d9d13597890ecb5388ac88d",
+            "schemaChars": 683,
+            "schemaHash": "4c3f0f3a801f9709f84d2f61203c93fc5d7f1c79e3da0ce77e5229a83d1afca6",
+            "propertiesCount": 8
           }
         ]
       },
       "currentTurn": {
-        "promptChars": 16,
+        "promptChars": 5,
         "runtimeContextChars": 0
       }
     },
     "contextBudgetStatus": {
       "schemaVersion": 1,
       "source": "pre-prompt-estimate",
-      "updatedAt": 1784084410900,
+      "updatedAt": 1784090717052,
       "provider": "lmstudio",
       "model": "google/gemma-4-26b-a4b-qat",
       "route": "fits",
       "shouldCompact": false,
-      "estimatedPromptTokens": 5009,
+      "estimatedPromptTokens": 4499,
       "contextTokenBudget": 200000,
       "promptBudgetBeforeReserve": 180000,
       "reserveTokens": 20000,
       "effectiveReserveTokens": 20000,
-      "remainingPromptBudgetTokens": 174991,
+      "remainingPromptBudgetTokens": 175501,
       "overflowTokens": 0,
       "toolResultReducibleChars": 0,
       "messageCount": 0,
       "unwindowedMessageCount": 0,
       "sessionId": "local-2"
     },
-    "inputTokens": 1,
-    "outputTokens": 5,
-    "totalTokens": 1,
+    "inputTokens": 10,
+    "outputTokens": 2,
+    "totalTokens": 10,
     "totalTokensFresh": true,
     "cacheRead": 0,
     "cacheWrite": 0,
-    "estimatedCostUsd": 0
+    "estimatedCostUsd": 0,
+    "lastActivityAt": 1784090717218
   },
   "agent:main:explicit:local-3": {
     "sessionId": "local-3",
