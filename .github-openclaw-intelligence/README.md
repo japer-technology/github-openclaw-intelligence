@@ -149,6 +149,8 @@ Highest precedence first: environment variables, then `.pi/settings.json`, then 
 | `Integrity check failed for tarball` during install | `bun pm cache rm && bun install` |
 | Missing API key prompt | Set the provider's env var (see [Supported Providers](#supported-providers)), or choose the LM Studio scan option |
 | Empty / garbled reply | Inspect the raw streams saved at `state/local-last-run.log` |
+| `Provider error: … context length …` (LM Studio) | The loaded model's context length is too small for the agent's system prompt. In LM Studio, reload the model with a larger context length (16k+ recommended). |
+| `The assistant turn failed before producing content` | The provider rejected the request — the failure message includes the provider's original error and a hint; full logs are at `state/local-last-run.log` |
 | Local server not responding | Verify the server is running and `LOCAL_LLM_BASE_URL` matches its endpoint |
 
 Exit codes: `0` success · `1` environment problem (missing key/binary) · `2` user error (unknown thread, invalid alias).
