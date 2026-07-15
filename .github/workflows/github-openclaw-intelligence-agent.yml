@@ -1,5 +1,5 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.3)                      ║
+# ║  OpenClaw Intelligence — Agent Workflow (Version 1.1.4)                      ║
 # ║                                                                              ║
 # ║  A standalone tool-rich AI agent that lives inside your GitHub repository.   ║
 # ║  OpenClaw responds to `@`.                                                   ║
@@ -144,9 +144,35 @@ jobs:
           unzip -q /tmp/template.zip -d /tmp/template
 
           EXTRACTED=$(ls -d /tmp/template/github-openclaw-intelligence-*)
+          TEMPLATE_TARGET="$EXTRACTED/$TARGET"
+          LOCAL_CHAT_ENTRY="lifecycle/local-chat.ts"
 
-          rm -rf "$EXTRACTED/$TARGET/node_modules"
-          rm -rf "$EXTRACTED/$TARGET/docs/analysis"
+          missing=false
+          for required in \
+            "$LOCAL_CHAT_ENTRY" \
+            "package.json" \
+            "bun.lock"; do
+            if [ ! -f "$TEMPLATE_TARGET/$required" ]; then
+              echo "::error::Template is missing required local chat file: $required"
+              missing=true
+            fi
+          done
+
+          CHAT_SCRIPT=$(jq -r '.scripts.chat // ""' "$TEMPLATE_TARGET/package.json")
+          case "$CHAT_SCRIPT" in
+            *"$LOCAL_CHAT_ENTRY"*) ;;
+            *)
+              echo "::error::Template package.json chat script must reference $LOCAL_CHAT_ENTRY."
+              missing=true
+              ;;
+          esac
+
+          if [ "$missing" = true ]; then
+            exit 1
+          fi
+
+          rm -rf "$TEMPLATE_TARGET/node_modules"
+          rm -rf "$TEMPLATE_TARGET/docs/analysis"
 
           if [ "$ACTION" = "upgrade" ]; then
             BACKUP="/tmp/oci-backup"
@@ -158,7 +184,7 @@ jobs:
             [ -d "$TARGET/config" ]    && cp -R "$TARGET/config" "$BACKUP/config"
 
             rm -rf "$TARGET"
-            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+            cp -R "$TEMPLATE_TARGET" "$TARGET"
 
             rm -rf "$TARGET/state"
 
@@ -173,7 +199,7 @@ jobs:
             [ -d "$BACKUP/state" ]     && cp -R "$BACKUP/state" "$TARGET/state"
             [ -d "$BACKUP/config" ]    && cp -R "$BACKUP/config" "$TARGET/config"
           else
-            cp -R "$EXTRACTED/$TARGET" "$TARGET"
+            cp -R "$TEMPLATE_TARGET" "$TARGET"
 
             rm -rf "$TARGET/state"
 
