@@ -85,6 +85,7 @@ import { marked } from "marked";
 import { markedTerminal } from "marked-terminal";
 import ansiRegex from "ansi-regex";
 import { buildOpenclawCommand, locateOpenclawEntry } from "./openclaw-launcher";
+import { buildCompactionConfig } from "./openclaw-config";
 
 // marked-terminal's return type does not perfectly align with marked's
 // MarkedExtension interface; the cast is the standard workaround.
@@ -994,14 +995,7 @@ function writeRuntimeConfig(rt: RuntimeState): string {
         // Prevent OpenClaw from creating bootstrap/identity template files in
         // the workspace; identity is bridged via generateSoulFromAgentsMd().
         skipBootstrap: true,
-        ...(compaction?.enabled === false
-          ? {}
-          : {
-              compaction: {
-                reserveTokens: compaction?.reserveTokens,
-                keepRecentTokens: compaction?.keepRecentTokens,
-              },
-            }),
+        compaction: buildCompactionConfig(compaction),
       },
     },
     skills: {

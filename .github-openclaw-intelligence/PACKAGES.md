@@ -10,8 +10,15 @@
 | Package | Version | Description |
 |---------|---------|-------------|
 | [@buape/carbon](https://github.com/buape/carbon) | ^0.16.0 | Discord UI component library required by OpenClaw's bundled Discord channel plugin. The plugin is eagerly loaded during CLI bootstrap even when using `--local` mode. |
-| [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) | ^1.70.0 | Lark/Feishu API SDK required by OpenClaw's bundled Feishu channel plugin. The plugin is eagerly loaded during CLI bootstrap via `jiti`, which resolves modules from the project root — so this must be a direct dependency to ensure top-level hoisting. |
-| [openclaw](https://github.com/openclaw/openclaw) | ^2026.6.11 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+| [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) | ^1.74.0 | Lark/Feishu API SDK required by OpenClaw's bundled Feishu channel plugin. The plugin is eagerly loaded during CLI bootstrap via `jiti`, which resolves modules from the project root — so this must be a direct dependency to ensure top-level hoisting. |
+| [ansi-regex](https://github.com/chalk/ansi-regex) | ^6.3.0 | Strips ANSI escape sequences from local chat output. |
+| [marked](https://github.com/markedjs/marked) | ^15.0.12 | Markdown parser for local chat; retained on the latest compatible major because `marked-terminal@7.3.0` requires `marked <16`. |
+| [marked-terminal](https://github.com/mikaelbr/marked-terminal) | ^7.3.0 | Renders Markdown in the terminal. |
+| [openclaw](https://github.com/openclaw/openclaw) | ^2026.9.5 | Multi-channel AI gateway with extensible messaging integrations. Provides the `openclaw agent --local` CLI command that powers the OpenClaw Intelligence system — it processes prompts, interacts with LLM providers, and manages conversation sessions. |
+
+`bun.lock` records the tested dependency graph. Install with `bun install --frozen-lockfile`
+to reproduce it. The `ws` override uses 8.21.3 because `@buape/carbon@0.16.0`
+pins a vulnerable 8.20.0 release; remove the override once upstream uses a patched version.
 
 ### OpenClaw Feature Surface
 
@@ -28,6 +35,10 @@ Beyond the CLI binary, OCI uses the following OpenClaw feature categories:
 | Environment isolation | `OPENCLAW_HOME`, `OPENCLAW_OAUTH_DIR` | Agent home and credential separation |
 | Compaction | `.pi/settings.json` `compaction` | Automatic context compaction for long conversations (`keepRecentTokens: 32000`) |
 
+Both runners forward `compaction.enabled` and `keepRecentTokens`. The legacy
+`reserveTokens` setting is retained for existing configuration files but is no
+longer forwarded: OpenClaw 2026.9.5 rejects it and manages its own reserve budget.
+
 See [docs/analysis/openclaw-feature-utilization.md](docs/analysis/openclaw-feature-utilization.md) for a full audit of used vs. available features.
 
 ## Infrastructure Dependencies
@@ -39,8 +50,8 @@ These are not package dependencies but are required for the system to function:
 | [GitHub Actions](https://github.com/features/actions) | The sole compute runtime. Issue, pull-request, comment, and scheduled events trigger a workflow that runs the AI agent. No external servers or containers are needed. |
 | [GitHub Issues](https://docs.github.com/en/issues) | Used as the conversation interface. Each issue or pull request maps to a persistent AI conversation thread. |
 | [Git](https://git-scm.com/) | All session state, conversation history, and agent edits are committed to the repository. Git serves as the memory and storage layer. |
-| [Bun](https://bun.sh) | JavaScript/TypeScript runtime used to execute the agent orchestrator and install dependencies. |
-| [Node.js](https://nodejs.org/) | Required by the OpenClaw CLI binary (>= 22). Installed alongside Bun in the workflow. |
+| [Bun](https://bun.sh) | Bun 1.4.2 executes the agent orchestrator and installs dependencies. |
+| [Node.js](https://nodejs.org/) | Required by the OpenClaw CLI binary (>=24.16.0 <25 or >=26.1.0). The workflow installs Node 24 LTS before dependency installation and tests. |
 | [gh CLI](https://cli.github.com/) | GitHub's official CLI tool, used by the agent lifecycle scripts to interact with the GitHub API (fetching issues, posting comments, managing reactions). |
 
 ## GitHub Actions Workflow Dependencies
@@ -51,7 +62,7 @@ These are referenced in `.github/workflows/`:
 |--------|----------|-------------|
 | [actions/checkout@v7](https://github.com/actions/checkout) | agent | Checks out the repository so the agent can read and write files. |
 | [oven-sh/setup-bun@v2](https://github.com/oven-sh/setup-bun) | agent | Installs the Bun runtime in the GitHub Actions environment. |
-| [actions/setup-node@v6](https://github.com/actions/setup-node) | agent | Installs Node.js 24 for the OpenClaw CLI binary. |
+| [actions/setup-node@v7](https://github.com/actions/setup-node) | agent, validation | Installs Node.js 24 for the OpenClaw CLI binary. |
 | [actions/cache@v6](https://github.com/actions/cache) | agent | Caches `node_modules` keyed on the `bun.lock` hash to speed up dependency installation. |
 | [actions/configure-pages@v6](https://github.com/actions/configure-pages) | public fabric | Configures GitHub Pages deployment. |
 | [actions/upload-pages-artifact@v5](https://github.com/actions/upload-pages-artifact) | public fabric | Uploads the static site artifact from `.github-openclaw-intelligence/public-fabric/`. |
@@ -78,7 +89,6 @@ These are pulled in transitively by `openclaw`:
 | Package | Description |
 |---------|-------------|
 | `@anthropic-ai/sdk` | Official Anthropic API client for Claude models. |
-| `@aws-sdk/client-bedrock` | AWS Bedrock client for accessing models via AWS infrastructure. |
 | `openai` | Official OpenAI API client. |
 | `@google/genai` | Google's Generative AI SDK for Gemini models. |
 | `express` | Web framework used by OpenClaw's gateway server. |

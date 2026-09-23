@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "child_process";
 import { resolve } from "path";
+import { version } from "../node_modules/openclaw/package.json";
 import { buildOpenclawCommand, locateOpenclawEntry } from "./openclaw-launcher";
 
 describe("OpenClaw launcher", () => {
@@ -20,4 +22,22 @@ describe("OpenClaw launcher", () => {
       "--version",
     ]);
   });
+
+  test("starts the installed OpenClaw CLI under Node", () => {
+    const entry = locateOpenclawEntry(resolve(import.meta.dir, ".."));
+    const [executable, ...args] = buildOpenclawCommand(entry, ["--version"]);
+    const output = execFileSync(executable, args, { encoding: "utf8", timeout: 30_000 });
+
+    expect(output).toContain(version);
+  }, 60_000);
+
+  test("supports the agent flags used by both runners", () => {
+    const entry = locateOpenclawEntry(resolve(import.meta.dir, ".."));
+    const [executable, ...args] = buildOpenclawCommand(entry, ["agent", "--help"]);
+    const output = execFileSync(executable, args, { encoding: "utf8", timeout: 30_000 });
+
+    for (const flag of ["--local", "--json", "--message", "--session-id", "--thinking"]) {
+      expect(output).toContain(flag);
+    }
+  }, 60_000);
 });

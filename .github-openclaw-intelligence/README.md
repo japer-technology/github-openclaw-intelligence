@@ -58,8 +58,8 @@ Talk to the **same agent from your terminal** — no GitHub Issues, no Actions, 
 ### Quick Start
 
 ```bash
-# 1. Install Bun and Node.js (once)
-#    OpenClaw requires Node.js >=22.22.3 <23, >=24.15.0 <25, or >=25.9.0
+# 1. Install Bun 1.4.2 and Node.js (once)
+#    OpenClaw requires Node.js >=24.16.0 <25 or >=26.1.0 (Node 24 LTS recommended)
 #    Bun: https://bun.sh
 #    Windows:  powershell -c "irm bun.sh/install.ps1 | iex"
 #    macOS/Linux:  curl -fsSL https://bun.sh/install | bash
@@ -148,7 +148,7 @@ Highest precedence first: environment variables, then `.pi/settings.json`, then 
 | Symptom | Fix |
 |---------|-----|
 | `openclaw binary not found` | Run `bun install` inside `.github-openclaw-intelligence/` |
-| `missing node:sqlite` | Install a supported Node.js version (Node 24.15+ recommended). OpenClaw cannot run under Bun. |
+| `missing node:sqlite` | Install a supported Node.js version (Node 24.16+ recommended). OpenClaw cannot run under Bun. |
 | `Set-Location : A positional parameter cannot be found that accepts argument 'run'` | You are passing `bun run chat` to PowerShell's `cd`. Run `Set-Location .\.github-openclaw-intelligence` first, then run `bun run chat` as a separate command. |
 | `Integrity check failed for tarball` during install | `bun pm cache rm && bun install` |
 | Missing API key prompt | Set the provider's env var (see [Supported Providers](#supported-providers)), or choose the LM Studio scan option |
@@ -280,7 +280,7 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
 
 Settings are validated against `config/settings.schema.json` during the preflight step.
 
-The provider, model, thinking level, timeout, and compaction values are passed explicitly to OpenClaw, ensuring the committed settings are respected regardless of host-level configuration on the runner image.
+The provider, model, thinking level, timeout, and supported compaction values are passed explicitly to OpenClaw, ensuring the committed settings are respected regardless of host-level configuration on the runner image. The legacy `compaction.reserveTokens` field is accepted but ignored: OpenClaw now manages its own reserve budget. `compaction.enabled` and `keepRecentTokens` remain supported.
 
 ### Supported Providers
 

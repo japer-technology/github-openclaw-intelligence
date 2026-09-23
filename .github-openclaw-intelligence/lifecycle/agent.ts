@@ -88,6 +88,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, copyFileSync, symli
 import { resolve } from "path";
 import { parseCommand, isMutationInvocation, SUPPORTED_COMMANDS } from "./command-parser";
 import { resolveTrustLevel, type TrustPolicy } from "./trust-level";
+import { buildCompactionConfig } from "./openclaw-config";
 
 // ─── Paths and event context ───────────────────────────────────────────────────
 // `import.meta.dir` resolves to `.github-openclaw-intelligence/lifecycle/`; stepping up one level
@@ -952,14 +953,7 @@ try {
         // inside the workspace directory (repo root).  The agent's identity is
         // already handled by the AGENTS.md → SOUL bridge in generateSoulFromAgentsMd().
         skipBootstrap: true,
-        ...(piSettings.compaction?.enabled === false
-          ? {}
-          : {
-              compaction: {
-                reserveTokens: piSettings.compaction?.reserveTokens,
-                keepRecentTokens: piSettings.compaction?.keepRecentTokens,
-              },
-            }),
+        compaction: buildCompactionConfig(piSettings.compaction),
       },
     },
     skills: {
