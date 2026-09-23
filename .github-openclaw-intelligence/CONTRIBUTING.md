@@ -27,7 +27,7 @@ Open a [GitHub Issue](../../issues) describing:
 
 1. Fork the repository and create a branch from `main`.
 2. Make your changes in small, reviewable increments.
-3. Test locally with `cd .github-openclaw-intelligence && bun install` and verify dependencies install cleanly.
+3. Install and verify locally using the commands under Development Setup.
 4. Open a pull request with a clear description of what changed and why.
 
 ---
@@ -51,13 +51,23 @@ See the [README](README.md#project-structure) for a detailed breakdown of every 
 
 ## Development Setup
 
-1. Install [Bun](https://bun.sh).
+1. Install [Bun](https://bun.sh) 1.4.2 and [Node.js](https://nodejs.org/) 24.16 or newer within the Node 24 LTS line.
 2. Clone the repository.
 3. Install dependencies:
    ```bash
-   cd .github-openclaw-intelligence && bun install
+   cd .github-openclaw-intelligence
+   bun install --frozen-lockfile
+   bun lifecycle/preflight.ts
+   bun run build
+   bun run test
+   bun run chat --help
+   bun audit
    ```
 4. Add an LLM API key as a repository secret (see [Supported Providers](README.md#supported-providers)).
+
+The validation workflow runs these credential-free checks on pushes to `main` and
+pull requests, including in the template repository where agent execution is
+intentionally disabled. Live model responses still require a configured provider.
 
 ---
 

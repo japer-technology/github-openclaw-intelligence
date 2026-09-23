@@ -370,11 +370,19 @@ jobs:
           echo "OpenClaw Intelligence enabled — ENABLED.md found."
 
       # 6. RUNTIME
+      - name: Setup Node.js
+        if: steps.check-folder.outputs.exists == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          check-latest: true
+          package-manager-cache: false
+
       - name: Setup Bun
         if: steps.check-folder.outputs.exists == 'true'
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3"
+          bun-version: "1.4.2"
 
       # 7. PREFLIGHT — validate config before installing dependencies
       - name: Preflight
@@ -387,7 +395,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .github-openclaw-intelligence/node_modules
-          key: oci-deps-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
+          key: oci-deps-${{ runner.os }}-${{ runner.arch }}-node24-bun1.4.2-${{ hashFiles('.github-openclaw-intelligence/bun.lock') }}
 
       # 9. INSTALL
       - name: Install dependencies
@@ -416,13 +424,6 @@ jobs:
         run: |
           cd .github-openclaw-intelligence
           bun test
-
-      # 10b. NODE.JS — OpenClaw requires Node.js >= 22 for its CLI binary.
-      - name: Setup Node.js
-        if: steps.check-folder.outputs.exists == 'true'
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24'
 
       # 11. RUN THE AGENT
       - name: Run
