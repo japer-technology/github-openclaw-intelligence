@@ -35,6 +35,10 @@ Beyond the CLI binary, OCI uses the following OpenClaw feature categories:
 | Environment isolation | `OPENCLAW_HOME`, `OPENCLAW_OAUTH_DIR` | Agent home and credential separation |
 | Compaction | `.pi/settings.json` `compaction` | Automatic context compaction for long conversations (`keepRecentTokens: 32000`) |
 
+Both runners forward `compaction.enabled` and `keepRecentTokens`. The legacy
+`reserveTokens` setting is retained for existing configuration files but is no
+longer forwarded: OpenClaw 2026.9.5 rejects it and manages its own reserve budget.
+
 See [docs/analysis/openclaw-feature-utilization.md](docs/analysis/openclaw-feature-utilization.md) for a full audit of used vs. available features.
 
 ## Infrastructure Dependencies

@@ -69,7 +69,8 @@
         "reserveTokens": {
           "type": "integer",
           "minimum": 1024,
-          "description": "Number of tokens to reserve for the model's response after compaction"
+          "deprecated": true,
+          "description": "Legacy setting accepted for compatibility but not forwarded; OpenClaw manages its own reserve budget"
         },
         "keepRecentTokens": {
           "type": "integer",

@@ -280,7 +280,7 @@ Edit `.github-openclaw-intelligence/.pi/settings.json` to change the LLM provide
 
 Settings are validated against `config/settings.schema.json` during the preflight step.
 
-The provider, model, thinking level, timeout, and compaction values are passed explicitly to OpenClaw, ensuring the committed settings are respected regardless of host-level configuration on the runner image.
+The provider, model, thinking level, timeout, and supported compaction values are passed explicitly to OpenClaw, ensuring the committed settings are respected regardless of host-level configuration on the runner image. The legacy `compaction.reserveTokens` field is accepted but ignored: OpenClaw now manages its own reserve budget. `compaction.enabled` and `keepRecentTokens` remain supported.
 
 ### Supported Providers
 
