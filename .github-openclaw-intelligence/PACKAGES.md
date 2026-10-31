@@ -20,6 +20,12 @@
 to reproduce it. The `ws` override uses 8.21.3 because `@buape/carbon@0.16.0`
 pins a vulnerable 8.20.0 release; remove the override once upstream uses a patched version.
 
+OpenClaw 2026.9.5 also pins affected versions of `@modelcontextprotocol/sdk`,
+`minimatch`, `undici`, and `zod`. Targeted overrides use 1.32.0, 11.0.1, 8.12.2,
+and 4.6.6 respectively. Remove these overrides once upstream pins patched
+versions. The minimatch override crosses a major version; preserve coverage of
+the glob APIs used by OpenClaw when updating it.
+
 ### OpenClaw Feature Surface
 
 Beyond the CLI binary, OCI uses the following OpenClaw feature categories:

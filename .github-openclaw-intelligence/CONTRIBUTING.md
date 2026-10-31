@@ -69,6 +69,11 @@ The validation workflow runs these credential-free checks on pushes to `main` an
 pull requests, including in the template repository where agent execution is
 intentionally disabled. Live model responses still require a configured provider.
 
+Preflight validates the constraints in `config/settings.schema.json` without
+installed dependencies. Optional settings may be omitted, but explicit `null`
+values and unknown fields inside `trustPolicy`, `limits`, or `compaction` are
+rejected. Add preflight regression cases when changing these constraints.
+
 ---
 
 ## Style and Conventions

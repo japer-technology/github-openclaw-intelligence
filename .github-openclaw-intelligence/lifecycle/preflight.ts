@@ -87,127 +87,71 @@ if (existsSync(packageJsonPath)) {
 }
 
 // ── 2. Validate settings.json against the schema ────────────────────────────
+interface SettingsSchema {
+  type: string;
+  required?: string[];
+  properties?: Record<string, SettingsSchema>;
+  additionalProperties?: boolean;
+  items?: SettingsSchema;
+  enum?: unknown[];
+  minLength?: number;
+  minimum?: number;
+  maximum?: number;
+}
+
+// Supports the validation keywords used by config/settings.schema.json.
+function validateSetting(value: unknown, schema: SettingsSchema, path: string): void {
+  const isObject = (input: unknown): input is Record<string, unknown> =>
+    input !== null && typeof input === "object" && !Array.isArray(input);
+  const matchesType = schema.type === "object" ? isObject(value)
+    : schema.type === "array" ? Array.isArray(value)
+    : schema.type === "integer" ? typeof value === "number" && Number.isInteger(value)
+    : typeof value === schema.type;
+
+  if (!matchesType) {
+    errors.push(`${path}: must be ${schema.type}`);
+    return;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`${path}: must be one of [${schema.enum.join(", ")}], got ${JSON.stringify(value)}`);
+  }
+  if (typeof value === "string" && schema.minLength !== undefined && [...value].length < schema.minLength) {
+    errors.push(`${path}: must be at least ${schema.minLength} character(s) long`);
+  }
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      errors.push(`${path}: must be at least ${schema.minimum}`);
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      errors.push(`${path}: must be at most ${schema.maximum}`);
+    }
+  }
+  if (Array.isArray(value) && schema.items) {
+    const itemSchema = schema.items;
+    value.forEach((item, index) => validateSetting(item, itemSchema, `${path}[${index}]`));
+  }
+  if (isObject(value)) {
+    const properties = schema.properties ?? {};
+    for (const key of schema.required ?? []) {
+      if (!Object.hasOwn(value, key)) {
+        errors.push(`${path}: missing required field "${key}"`);
+      }
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      if (Object.hasOwn(properties, key)) {
+        validateSetting(entry, properties[key], `${path}.${key}`);
+      } else if (schema.additionalProperties === false) {
+        errors.push(`${path}: unknown field "${key}"`);
+      }
+    }
+  }
+}
+
 if (existsSync(piSettingsPath) && existsSync(schemaPath)) {
   try {
-    const settings = JSON.parse(readFileSync(piSettingsPath, "utf-8"));
-    const schema = JSON.parse(readFileSync(schemaPath, "utf-8"));
-
-    // Validate required fields
-    if (schema.required) {
-      for (const field of schema.required) {
-        if (!(field in settings)) {
-          errors.push(`settings.json: missing required field "${field}"`);
-        }
-      }
-    }
-
-    // Validate each property against schema constraints
-    const props = schema.properties ?? {};
-    for (const [key, def] of Object.entries(props) as [string, any][]) {
-      if (!(key in settings)) continue;
-      const value = settings[key];
-
-      // Type check
-      if (def.type === "string" && typeof value !== "string") {
-        errors.push(`settings.json: "${key}" must be a string, got ${typeof value}`);
-        continue;
-      }
-
-      // Enum check
-      if (def.type === "string" && def.enum && !def.enum.includes(value)) {
-        errors.push(
-          `settings.json: "${key}" must be one of [${def.enum.join(", ")}], got "${value}"`
-        );
-      }
-
-      // minLength check
-      if (typeof def.minLength === "number" && typeof value === "string" && value.length < def.minLength) {
-        errors.push(`settings.json: "${key}" must be at least ${def.minLength} character(s) long`);
-      }
-    }
-
-    // ── Validate trustPolicy ─────────────────────────────────────────────────
-    if (settings.trustPolicy != null) {
-      const tp = settings.trustPolicy;
-      if (tp === null || typeof tp !== "object" || Array.isArray(tp)) {
-        errors.push('settings.json: "trustPolicy" must be an object');
-      } else {
-        if (tp.trustedUsers != null) {
-          if (!Array.isArray(tp.trustedUsers)) {
-            errors.push('settings.json: "trustPolicy.trustedUsers" must be an array of strings');
-          } else if (tp.trustedUsers.some((u: unknown) => typeof u !== "string")) {
-            errors.push('settings.json: "trustPolicy.trustedUsers" entries must be strings');
-          }
-        }
-        if (tp.semiTrustedRoles != null) {
-          const validRoles = ["admin", "maintain", "write"];
-          if (!Array.isArray(tp.semiTrustedRoles)) {
-            errors.push('settings.json: "trustPolicy.semiTrustedRoles" must be an array');
-          } else {
-            for (const role of tp.semiTrustedRoles) {
-              if (!validRoles.includes(role)) {
-                errors.push(
-                  `settings.json: "trustPolicy.semiTrustedRoles" contains invalid value "${role}" (must be one of [${validRoles.join(", ")}])`
-                );
-              }
-            }
-          }
-        }
-        if (tp.untrustedBehavior != null) {
-          const validBehaviors = ["read-only-response", "block"];
-          if (!validBehaviors.includes(tp.untrustedBehavior)) {
-            errors.push(
-              `settings.json: "trustPolicy.untrustedBehavior" must be one of [${validBehaviors.join(", ")}], got "${tp.untrustedBehavior}"`
-            );
-          }
-        }
-      }
-    }
-
-    // ── Validate limits ──────────────────────────────────────────────────────
-    if (settings.limits != null) {
-      const lim = settings.limits;
-      if (lim === null || typeof lim !== "object" || Array.isArray(lim)) {
-        errors.push('settings.json: "limits" must be an object');
-      } else {
-        if (lim.workflowTimeoutMinutes != null) {
-          if (typeof lim.workflowTimeoutMinutes !== "number" || !Number.isInteger(lim.workflowTimeoutMinutes)) {
-            errors.push('settings.json: "limits.workflowTimeoutMinutes" must be an integer');
-          } else if (lim.workflowTimeoutMinutes < 1) {
-            errors.push('settings.json: "limits.workflowTimeoutMinutes" must be at least 1');
-          } else if (lim.workflowTimeoutMinutes > 360) {
-            errors.push('settings.json: "limits.workflowTimeoutMinutes" must be at most 360');
-          }
-        }
-      }
-    }
-
-    // ── Validate compaction ──────────────────────────────────────────────────
-    if (settings.compaction != null) {
-      const comp = settings.compaction;
-      if (comp === null || typeof comp !== "object" || Array.isArray(comp)) {
-        errors.push('settings.json: "compaction" must be an object');
-      } else {
-        if (comp.enabled != null && typeof comp.enabled !== "boolean") {
-          errors.push('settings.json: "compaction.enabled" must be a boolean');
-        }
-        if (comp.reserveTokens != null) {
-          if (typeof comp.reserveTokens !== "number" || !Number.isInteger(comp.reserveTokens)) {
-            errors.push('settings.json: "compaction.reserveTokens" must be an integer');
-          } else if (comp.reserveTokens < 1024) {
-            errors.push('settings.json: "compaction.reserveTokens" must be at least 1024');
-          }
-        }
-        if (comp.keepRecentTokens != null) {
-          if (typeof comp.keepRecentTokens !== "number" || !Number.isInteger(comp.keepRecentTokens)) {
-            errors.push('settings.json: "compaction.keepRecentTokens" must be an integer');
-          } else if (comp.keepRecentTokens < 1024) {
-            errors.push('settings.json: "compaction.keepRecentTokens" must be at least 1024');
-          }
-        }
-      }
-    }
-
+    const settings: unknown = JSON.parse(readFileSync(piSettingsPath, "utf-8"));
+    const schema: SettingsSchema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+    validateSetting(settings, schema, "settings.json");
   } catch (e) {
     errors.push(`settings.json: failed to parse — ${(e as Error).message}`);
   }
